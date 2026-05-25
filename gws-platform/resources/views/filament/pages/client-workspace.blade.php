@@ -203,17 +203,7 @@
                 role="tabpanel"
                 aria-labelledby="tab-financial"
             >
-                <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Financial Summary</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                        Loans, repayments, savings, and transaction history for this client.
-                    </p>
-                    <div class="rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 p-8 text-center">
-                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        <p class="mt-2 text-sm font-medium text-gray-600 dark:text-gray-400">Financial summary component</p>
-                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-500">Will be wired to <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">livewire:client-financial-summary</code></p>
-                    </div>
-                </div>
+                <livewire:client-workspace.financial-cockpit-block :client-id="$client->id" :key="'financial-' . $client->id" />
             </div>
 
             {{-- Documents Block --}}
@@ -229,17 +219,7 @@
                 role="tabpanel"
                 aria-labelledby="tab-documents"
             >
-                <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Documents</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                        Uploaded files, KYC documents, and supporting materials for this client.
-                    </p>
-                    <div class="rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 p-8 text-center">
-                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
-                        <p class="mt-2 text-sm font-medium text-gray-600 dark:text-gray-400">Documents manager component</p>
-                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-500">Will be wired to <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">livewire:client-documents-manager</code></p>
-                    </div>
-                </div>
+                <livewire:client-workspace.document-vault-block :client-id="$client->id" :key="'documents-' . $client->id" />
             </div>
 
             {{-- Communications Block --}}
@@ -255,17 +235,7 @@
                 role="tabpanel"
                 aria-labelledby="tab-communications"
             >
-                <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Communications</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                        SMS history, call logs, and notes exchanged with this client.
-                    </p>
-                    <div class="rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 p-8 text-center">
-                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                        <p class="mt-2 text-sm font-medium text-gray-600 dark:text-gray-400">Communications log component</p>
-                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-500">Will be wired to <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">livewire:client-communications-log</code></p>
-                    </div>
-                </div>
+                <livewire:client-workspace.communication-hub-block :client-id="$client->id" :key="'comms-' . $client->id" />
             </div>
 
             {{-- Spatial Block --}}
@@ -281,17 +251,7 @@
                 role="tabpanel"
                 aria-labelledby="tab-spatial"
             >
-                <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Spatial Data</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                        Geolocation, mapped assets, field visit routes, and spatial analytics for this client.
-                    </p>
-                    <div class="rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 p-8 text-center">
-                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                        <p class="mt-2 text-sm font-medium text-gray-600 dark:text-gray-400">Spatial map component</p>
-                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-500">Will be wired to <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">livewire:client-spatial-map</code></p>
-                    </div>
-                </div>
+                <livewire:client-workspace.spatial-footprint-block :client-id="$client->id" :key="'spatial-' . $client->id" />
             </div>
 
             {{-- AI Insights Block --}}
@@ -307,17 +267,7 @@
                 role="tabpanel"
                 aria-labelledby="tab-ai"
             >
-                <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">AI Insights</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                        AI-generated recommendations, risk assessments, and next-best-action suggestions for this client.
-                    </p>
-                    <div class="rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 p-8 text-center">
-                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/></svg>
-                        <p class="mt-2 text-sm font-medium text-gray-600 dark:text-gray-400">AI insights component</p>
-                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-500">Will be wired to <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">livewire:client-ai-insights</code></p>
-                    </div>
-                </div>
+                <livewire:client-workspace.ai-insights-block :client-id="$client->id" :key="'ai-' . $client->id" />
             </div>
         </div>
     </div>

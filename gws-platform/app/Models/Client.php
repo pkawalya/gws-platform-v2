@@ -90,6 +90,46 @@ class Client extends Model
         return $this->hasMany(SurveyProject::class);
     }
 
+    /**
+     * The quotations associated with this client.
+     */
+    public function quotations(): HasMany
+    {
+        return $this->hasMany(Quotation::class);
+    }
+
+    /**
+     * The invoices associated with this client.
+     */
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class);
+    }
+
+    /**
+     * The documents associated with this client.
+     */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(ClientDocument::class);
+    }
+
+    /**
+     * The communications associated with this client.
+     */
+    public function communications(): HasMany
+    {
+        return $this->hasMany(Communication::class);
+    }
+
+    /**
+     * The project progress records for this client.
+     */
+    public function projectProgress(): HasMany
+    {
+        return $this->hasMany(ClientProjectProgress::class);
+    }
+
     // --------------------------------------------------------------------------
     // Accessors
     // --------------------------------------------------------------------------

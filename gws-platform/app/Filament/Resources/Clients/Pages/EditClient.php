@@ -13,6 +13,11 @@ class EditClient extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            \Filament\Actions\Action::make('openWorkspace')
+                ->label('Open Workspace')
+                ->icon('heroicon-o-arrow-top-right-on-square')
+                ->color('gray')
+                ->url(fn () => ClientResource::getUrl('workspace', ['record' => $this->getRecord()])),
             ViewAction::make(),
         ];
     }
