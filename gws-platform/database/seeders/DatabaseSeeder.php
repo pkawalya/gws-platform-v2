@@ -34,6 +34,13 @@ class DatabaseSeeder extends Seeder
         $this->call(AiPromptTemplateSeeder::class);
 
         // ──────────────────────────────────────────────
+        // Phase 2A Seeders
+        // ──────────────────────────────────────────────
+
+        // 4. Workflow definitions (default Uganda Land Survey Approval)
+        $this->call(WorkflowDefinitionSeeder::class);
+
+        // ──────────────────────────────────────────────
         // Default user for local development
         // ──────────────────────────────────────────────
         User::factory()->create([

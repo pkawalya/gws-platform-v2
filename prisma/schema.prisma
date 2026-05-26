@@ -1,0 +1,511 @@
+// GWS Platform V2 — Prisma Schema (Next.js Dashboard)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Multi-Tenancy ──
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  is_active   Boolean  @default(true)
+  settings    Json?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  branches             Branch[]
+  clients              Client[]
+  workflowDefinitions  WorkflowDefinition[]
+  workflowInstances    WorkflowInstance[]
+
+  @@map("organizations")
+}
+
+model Branch {
+  id              String   @id @default(cuid())
+  organization_id String
+  name            String
+  slug            String
+  is_head_office  Boolean  @default(false)
+  is_active       Boolean  @default(true)
+  settings        Json?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  organization      Organization @relation(fields: [organization_id], references: [id])
+  clients           Client[]
+  workflowInstances WorkflowInstance[]
+
+  @@unique([organization_id, slug])
+  @@map("branches")
+}
+
+// ── Clients ──
+model Client {
+  id               BigInt   @id @default(autoincrement())
+  organization_id  String?
+  branch_id        String?
+  client_ref       String   @unique
+  client_type      String   @default("individual")
+  first_name       String?
+  last_name        String?
+  company_name     String?
+  email            String?
+  phone            String?
+  nin              String?
+  address          String?  @db.Text
+  district         String?
+  sub_county       String?
+  parish           String?
+  village          String?
+  status           String   @default("prospect")
+  notes            String?  @db.Text
+  latitude         Decimal? @db.Decimal(11, 8)
+  longitude        Decimal? @db.Decimal(11, 8)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  organization Organization? @relation(fields: [organization_id], references: [id])
+  branch       Branch?       @relation(fields: [branch_id], references: [id])
+
+  surveyProjects SurveyProject[]
+  invoices       Invoice[]
+  quotations     Quotation[]
+  documents      ClientDocument[]
+  communications Communication[]
+
+  @@index([organization_id])
+  @@index([status])
+  @@map("clients")
+}
+
+// ── Survey Projects ──
+model SurveyProject {
+  id               BigInt   @id @default(autoincrement())
+  organization_id  String?
+  branch_id        String?
+  client_id        BigInt
+  project_ref      String   @unique
+  project_type     String
+  title            String
+  description      String?  @db.Text
+  status           String   @default("intake")
+  priority         String   @default("normal")
+  district         String?
+  sub_county       String?
+  parish           String?
+  village          String?
+  boundary_geojson String?  @db.Text
+  area_hectares    Decimal? @db.Decimal(12, 4)
+  assigned_to      String?
+  due_date         DateTime?
+  completed_at     DateTime?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  client Client @relation(fields: [client_id], references: [id])
+
+  approvalSteps    ApprovalStep[]
+  progressRecords  ClientProjectProgress[]
+  fieldObservations FieldObservation[]
+
+  @@index([organization_id])
+  @@index([client_id])
+  @@index([status])
+  @@map("survey_projects")
+}
+
+// ── Approval Steps ──
+model ApprovalStep {
+  id               BigInt   @id @default(autoincrement())
+  survey_project_id BigInt
+  step_name        String
+  step_order       Int
+  approver_role    String?
+  assigned_to      String?
+  status           String   @default("pending")
+  approved_by      String?
+  approved_at      DateTime?
+  notes            String?  @db.Text
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  surveyProject SurveyProject @relation(fields: [survey_project_id], references: [id])
+  @@index([survey_project_id])
+  @@map("approval_steps")
+}
+
+// ── Project Progress ──
+model ClientProjectProgress {
+  id               BigInt   @id @default(autoincrement())
+  survey_project_id BigInt
+  milestone        String
+  status           String   @default("pending")
+  percentage       Int      @default(0)
+  notes            String?  @db.Text
+  recorded_by      String?
+  recorded_at      DateTime @default(now())
+
+  surveyProject SurveyProject @relation(fields: [survey_project_id], references: [id])
+  @@index([survey_project_id])
+  @@map("client_project_progress")
+}
+
+// ── Financial ──
+model Invoice {
+  id              BigInt   @id @default(autoincrement())
+  organization_id String?
+  client_id       BigInt
+  invoice_number  String   @unique
+  amount          Decimal  @db.Decimal(14, 2)
+  tax_amount      Decimal? @db.Decimal(14, 2)
+  total_amount    Decimal  @db.Decimal(14, 2)
+  currency        String   @default("UGX")
+  status          String   @default("draft")
+  due_date        DateTime?
+  paid_at         DateTime?
+  notes           String?  @db.Text
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  client Client @relation(fields: [client_id], references: [id])
+  @@index([client_id])
+  @@index([status])
+  @@map("invoices")
+}
+
+model Quotation {
+  id              BigInt   @id @default(autoincrement())
+  organization_id String?
+  client_id       BigInt
+  quote_number    String   @unique
+  title           String
+  amount          Decimal  @db.Decimal(14, 2)
+  currency        String   @default("UGX")
+  status          String   @default("draft")
+  valid_until     DateTime?
+  notes           String?  @db.Text
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  client Client @relation(fields: [client_id], references: [id])
+  @@index([client_id])
+  @@index([status])
+  @@map("quotations")
+}
+
+// ── Documents ──
+model ClientDocument {
+  id            BigInt   @id @default(autoincrement())
+  client_id     BigInt
+  document_type String
+  title         String
+  file_path     String
+  mime_type     String?
+  file_size     Int?
+  description   String?  @db.Text
+  is_verified   Boolean  @default(false)
+  uploaded_by   String?
+  created_at    DateTime @default(now())
+
+  client Client @relation(fields: [client_id], references: [id])
+  @@index([client_id])
+  @@map("client_documents")
+}
+
+// ── Communications ──
+model Communication {
+  id         BigInt   @id @default(autoincrement())
+  client_id  BigInt
+  channel    String
+  direction  String
+  subject    String?
+  body       String   @db.Text
+  status     String   @default("pending")
+  sent_at    DateTime?
+  created_at DateTime @default(now())
+
+  client Client @relation(fields: [client_id], references: [id])
+  @@index([client_id])
+  @@map("communications")
+}
+
+// ── Workflow Engine (Phase 2A) ──
+model WorkflowDefinition {
+  id              String   @id @default(cuid())
+  organization_id String?
+  name            String
+  slug            String   @unique
+  description     String?  @db.Text
+  version         Int      @default(1)
+  is_active       Boolean  @default(true)
+  trigger_type    String   @default("manual")
+  trigger_config  Json?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  organization Organization? @relation(fields: [organization_id], references: [id])
+  steps        WorkflowStep[]
+  instances    WorkflowInstance[]
+
+  @@index([organization_id])
+  @@index([slug])
+  @@map("workflow_definitions")
+}
+
+model WorkflowStep {
+  id                     String   @id @default(cuid())
+  workflow_definition_id String
+  name                   String
+  slug                   String
+  step_order             Int
+  step_type              String   @default("approval")
+  assignee_type          String?  @default("role")
+  assignee_id            String?
+  auto_assign            Boolean  @default(false)
+  is_required            Boolean  @default(true)
+  sla_hours              Int?
+  config                 Json?
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  workflowDefinition  WorkflowDefinition @relation(fields: [workflow_definition_id], references: [id], onDelete: Cascade)
+  incomingTransitions WorkflowTransition[] @relation("ToStep")
+  outgoingTransitions WorkflowTransition[] @relation("FromStep")
+
+  @@unique([workflow_definition_id, slug])
+  @@index([workflow_definition_id])
+  @@map("workflow_steps")
+}
+
+model WorkflowInstance {
+  id                     String   @id @default(cuid())
+  workflow_definition_id String
+  organization_id        String?
+  branch_id              String?
+  subject_type           String
+  subject_id             String
+  status                 String   @default("pending")
+  current_step_id        String?
+  current_step_order     Int?
+  started_at             DateTime @default(now())
+  completed_at           DateTime?
+  cancelled_at           DateTime?
+  cancellation_reason    String?  @db.Text
+  metadata               Json?
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  workflowDefinition WorkflowDefinition @relation(fields: [workflow_definition_id], references: [id])
+  organization      Organization?      @relation(fields: [organization_id], references: [id])
+  branch            Branch?            @relation(fields: [branch_id], references: [id])
+  transitions       WorkflowTransition[]
+
+  @@index([workflow_definition_id])
+  @@index([subject_type, subject_id])
+  @@index([status])
+  @@index([organization_id])
+  @@map("workflow_instances")
+}
+
+model WorkflowTransition {
+  id                    String   @id @default(cuid())
+  workflow_instance_id  String
+  from_step_id          String?
+  to_step_id            String
+  action                String
+  performed_by          String?
+  performed_at          DateTime @default(now())
+  notes                 String?  @db.Text
+  metadata              Json?
+
+  workflowInstance WorkflowInstance @relation(fields: [workflow_instance_id], references: [id], onDelete: Cascade)
+  fromStep        WorkflowStep?    @relation("FromStep", fields: [from_step_id], references: [id])
+  toStep          WorkflowStep     @relation("ToStep", fields: [to_step_id], references: [id])
+
+  @@index([workflow_instance_id])
+  @@index([from_step_id])
+  @@index([to_step_id])
+  @@map("workflow_transitions")
+}
+
+// ── Spatial OS (Phase 2B) ──
+model SpatialLayer {
+  id              String   @id @default(cuid())
+  organization_id String?
+  name            String
+  slug            String
+  layer_type      String   @default("project")
+  source_type     String   @default("manual")
+  is_active       Boolean  @default(true)
+  default_style   Json?
+  min_zoom        Int      @default(8)
+  max_zoom        Int      @default(18)
+  metadata        Json?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  @@unique([organization_id, slug])
+  @@index([organization_id])
+  @@index([layer_type])
+  @@map("spatial_layers")
+}
+
+model MapAnnotation {
+  id               String   @id @default(cuid())
+  organization_id  String?
+  layer_id         String
+  feature_type     String   @default("marker")
+  geojson          Json
+  properties       Json?
+  title            String?
+  description      String?  @db.Text
+  annotatable_type String?
+  annotatable_id   String?
+  created_by       String?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  @@index([layer_id])
+  @@index([annotatable_type, annotatable_id])
+  @@index([organization_id])
+  @@map("map_annotations")
+}
+
+// ── Field Sync (Phase 2C) ──
+model FieldObservation {
+  id               BigInt   @id @default(autoincrement())
+  organization_id  String?
+  branch_id        String?
+  survey_project_id BigInt
+  observer_id      String
+  observation_type String
+  title            String
+  description      String?  @db.Text
+  latitude         Decimal  @db.Decimal(11, 8)
+  longitude        Decimal  @db.Decimal(11, 8)
+  accuracy_meters  Decimal? @db.Decimal(8, 2)
+  altitude_meters  Decimal? @db.Decimal(8, 2)
+  media_paths      Json?
+  form_data        Json?
+  status           String   @default("synced")
+  sync_id          String?
+  synced_at        DateTime @default(now())
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  surveyProject SurveyProject @relation(fields: [survey_project_id], references: [id])
+
+  @@index([survey_project_id])
+  @@index([observer_id])
+  @@index([organization_id])
+  @@index([sync_id])
+  @@map("field_observations")
+}
+
+model FieldSyncEvent {
+  id              String   @id @default(cuid())
+  organization_id String?
+  device_id       String
+  user_id         String
+  sync_type       String   @default("push")
+  status          String   @default("pending")
+  records_pushed  Int      @default(0)
+  records_pulled  Int      @default(0)
+  conflicts_count Int      @default(0)
+  started_at      DateTime @default(now())
+  completed_at    DateTime?
+  error_message   String?  @db.Text
+  metadata        Json?
+
+  @@index([device_id])
+  @@index([user_id])
+  @@index([organization_id])
+  @@index([status])
+  @@map("field_sync_events")
+}
+
+// ── Domain Events (Phase 0) ──
+model DomainEvent {
+  id              BigInt   @id @default(autoincrement())
+  event_type      String
+  aggregate       String
+  aggregate_id    String
+  payload         Json
+  metadata        Json?
+  organization_id String?
+  branch_id       String?
+  created_at      DateTime @default(now())
+
+  @@index([aggregate, aggregate_id])
+  @@index([event_type])
+  @@index([organization_id])
+  @@map("domain_events")
+}
+
+// ── AI Governance (Phase 0) ──
+model AiModelVersion {
+  id                  String   @id
+  provider            String
+  model_name          String
+  display_name        String
+  is_active           Boolean  @default(true)
+  cost_per_1k_input   Decimal? @db.Decimal(10, 6)
+  cost_per_1k_output  Decimal? @db.Decimal(10, 6)
+  max_tokens          Int?
+  created_at          DateTime @default(now())
+
+  promptTemplates AiPromptTemplate[]
+  callLogs        AiCallLog[]
+
+  @@map("ai_model_versions")
+}
+
+model AiPromptTemplate {
+  id            String   @id
+  slug          String   @unique
+  name          String
+  description   String?
+  system_prompt String   @db.Text
+  user_prompt   String?  @db.Text
+  model_id      String
+  temperature   Float?
+  max_tokens    Int?
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  aiModelVersion AiModelVersion @relation(fields: [model_id], references: [id])
+  @@map("ai_prompt_templates")
+}
+
+model AiCallLog {
+  id                  BigInt   @id @default(autoincrement())
+  prompt_template_id  String?
+  model_id            String
+  input_tokens        Int?
+  output_tokens       Int?
+  cost_usd            Decimal? @db.Decimal(12, 8)
+  latency_ms          Int?
+  status              String   @default("pending")
+  error_message       String?  @db.Text
+  request_payload     Json?
+  response_data       Json?
+  caller_type         String?
+  caller_id           String?
+  organization_id     String?
+  branch_id           String?
+  created_at          DateTime @default(now())
+
+  aiModelVersion AiModelVersion @relation(fields: [model_id], references: [id])
+  @@index([caller_type, caller_id])
+  @@index([organization_id])
+  @@index([created_at])
+  @@map("ai_call_logs")
+}
