@@ -43,6 +43,28 @@ export const STATUS_BADGE: Record<string, string> = {
   unverified: 'bg-amber-100 text-amber-800 border-amber-200',
 }
 
+// Uganda districts for autocomplete
+export const UGANDA_DISTRICTS = [
+  'Kampala', 'Wakiso', 'Mukono', 'Jinja', 'Entebbe', 'Mbale', 'Gulu',
+  'Lira', 'Fort Portal', 'Mbarara', 'Masaka', 'Kasese', 'Arua', 'Soroti',
+  'Pallisa', 'Tororo', 'Iganga', 'Hoima', 'Masindi', 'Kabarole',
+  'Bushenyi', 'Kamuli', 'Luweero', 'Mpigi', 'Mubende', 'Nakasongola',
+  'Rakai', 'Sembabule', 'Kalangala', 'Kayunga', 'Kiboga', 'Mityana',
+  'Nakaseke', 'Wakiso', 'Amuria', 'Budaka', 'Bududa', 'Bugiri', 'Bukedea',
+  'Bukwo', 'Bulisa', 'Bundibugyo', 'Busia', 'Butaleja', 'Dokolo',
+  'Kaabong', 'Kaberamaido', 'Kalinzu', 'Kampala', 'Kamwenge', 'Kanungu',
+  'Kapchorwa', 'Katakwi', 'Kibaale', 'Kibale', 'Kibuku', 'Kiruhura',
+  'Kiryandongo', 'Kisoro', 'Kitgum', 'Koboko', 'Kotido', 'Kumi',
+  'Kyenjojo', 'Lamwo', 'Manafwa', 'Maracha', 'Mayuge', 'Moroto',
+  'Moyo', 'Namutumba', 'Nebbi', 'Ngora', 'Ntungamo', 'Otuke',
+  'Oyam', 'Pader', 'Pakwach', 'Rubirizi', 'Sironko', 'Teso',
+  'Yumbe', 'Zombo', 'Agago', 'Alebtong', 'Amolatar', 'Amudat',
+  'Apac', 'Buvuma', 'Bwanja', 'Gomba', 'Isingiro', 'Kagadi',
+  'Kakumiro', 'Kwania', 'Kyankwanzi', 'Lwengo', 'Mitooma',
+  'Namayingo', 'NAPAK', 'Ntoroko', 'Nwoya', 'Omoro', 'Rubanda',
+  'Rukungiri', 'Sheema', 'Kyegegwa', 'Kikuube', 'Pakwach',
+]
+
 export function fmt(s: string) {
   return s.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
 }
@@ -53,4 +75,25 @@ export function statusBadge(status: string) {
       {fmt(status)}
     </Badge>
   )
+}
+
+export function formatUGX(amount: number | string): string {
+  const num = typeof amount === 'string' ? parseFloat(amount) : amount
+  if (isNaN(num)) return 'UGX 0'
+  if (num >= 1000000000) return `UGX ${(num / 1000000000).toFixed(1)}B`
+  if (num >= 1000000) return `UGX ${(num / 1000000).toFixed(1)}M`
+  return `UGX ${num.toLocaleString()}`
+}
+
+// Column visibility toggle helper
+export const COMMON_COLUMNS = {
+  ref: { key: 'ref', label: 'Ref', defaultVisible: true },
+  name: { key: 'name', label: 'Name', defaultVisible: true },
+  district: { key: 'district', label: 'District', defaultVisible: true },
+  contact: { key: 'contact', label: 'Contact', defaultVisible: false },
+  status: { key: 'status', label: 'Status', defaultVisible: true },
+  type: { key: 'type', label: 'Type', defaultVisible: true },
+  priority: { key: 'priority', label: 'Priority', defaultVisible: true },
+  area: { key: 'area', label: 'Area', defaultVisible: false },
+  date: { key: 'date', label: 'Date', defaultVisible: true },
 }

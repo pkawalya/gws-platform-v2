@@ -45,12 +45,36 @@ export default function SpatialMap({ markers, polygons = [], center, zoom }: Spa
         zoomControl: true,
       })
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      // Multiple tile layers
+      const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a>',
         maxZoom: 18,
-      }).addTo(map)
+      })
 
-      // Custom icons
+      const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '&copy; Esri',
+        maxZoom: 18,
+      })
+
+      const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenTopoMap',
+        maxZoom: 17,
+      })
+
+      // Default layer
+      osmLayer.addTo(map)
+
+      // Layer controls
+      L.control.layers({
+        'Street Map': osmLayer,
+        'Satellite': satelliteLayer,
+        'Topographic': topoLayer,
+      }, {}, { position: 'topright' }).addTo(map)
+
+      // Scale control
+      L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map)
+
+      // Custom icons for different types
       const clientIcon = L.divIcon({
         html: `<div style="background:#3b82f6;width:28px;height:28px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;"><span style="color:white;font-size:12px;font-weight:bold;">C</span></div>`,
         className: '',
@@ -65,13 +89,32 @@ export default function SpatialMap({ markers, polygons = [], center, zoom }: Spa
         iconAnchor: [12, 12],
       })
 
+      const projectIcon = L.divIcon({
+        html: `<div style="background:#10b981;width:28px;height:28px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;"><span style="color:white;font-size:12px;font-weight:bold;">P</span></div>`,
+        className: '',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+      })
+
+      const iconMap: Record<string, any> = {
+        client: clientIcon,
+        observation: observationIcon,
+        project: projectIcon,
+      }
+
+      const typeLabels: Record<string, string> = {
+        client: 'Client',
+        observation: 'Observation',
+        project: 'Project',
+      }
+
       // Add markers
       markers.forEach((m) => {
-        const icon = m.type === 'client' ? clientIcon : observationIcon
+        const icon = iconMap[m.type] || clientIcon
         L.marker([m.lat, m.lng], { icon })
           .addTo(map)
           .bindPopup(
-            `<div style="min-width:160px"><strong>${m.title}</strong><br/><span style="color:#6b7280">${m.type === 'client' ? 'Client' : 'Observation'}</span>${m.status ? `<br/>Status: <b>${m.status}</b>` : ''}${m.description ? `<br/><small>${m.description}</small>` : ''}<br/><small>${m.lat.toFixed(4)}, ${m.lng.toFixed(4)}</small></div>`
+            `<div style="min-width:180px"><strong style="font-size:13px">${m.title}</strong><br/><span style="color:#6b7280;font-size:11px">${typeLabels[m.type] || m.type}</span>${m.status ? `<br/>Status: <b style="font-size:11px">${m.status}</b>` : ''}${m.description ? `<br/><small style="color:#6b7280">${m.description}</small>` : ''}<br/><small style="color:#94a3b8">${m.lat.toFixed(4)}, ${m.lng.toFixed(4)}</small></div>`
           )
       })
 
@@ -104,7 +147,6 @@ export default function SpatialMap({ markers, polygons = [], center, zoom }: Spa
         mapInstanceRef.current = null
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (

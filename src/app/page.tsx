@@ -11,7 +11,9 @@ import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
-import { MapPin, Search, Database, LayoutDashboard, Users, ShieldCheck, Receipt, GitBranch, Smartphone, Layers, Brain, ScrollText, MessageSquare, FileText, Building2, BarChart2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { MapPin, Search, Database, LayoutDashboard, Users, ShieldCheck, Receipt, GitBranch, Smartphone, Layers, Brain, ScrollText, MessageSquare, FileText, Building2, BarChart2, Moon, Sun, Command } from 'lucide-react'
+import { toast } from 'sonner'
 
 // Platform components
 import type { PageId, ClientRecord, ProjectRecord, DetailPanelState, NavItem } from '@/components/platform/types'
@@ -30,11 +32,36 @@ import { ApprovalsPage } from '@/components/platform/approvals-page'
 import { AuditTrailPage } from '@/components/platform/audit-trail-page'
 import { OrganizationsPage } from '@/components/platform/organizations-page'
 import { ReportsPage } from '@/components/platform/reports-page'
+import { CommandPalette } from '@/components/platform/command-palette'
 import {
   ClientDetail, ProjectDetail, WorkflowDetail, ObservationDetail, SyncDetail,
   AIModelDetail, InvoiceDetail, QuotationDetail, DocumentDetail, CommunicationDetail,
   ApprovalDetail, DomainEventDetail, ReportDetail,
 } from '@/components/platform/detail-panels'
+
+// ── Dark Mode Hook ──
+function useDarkMode() {
+  const [dark, setDark] = useState(() => {
+    if (typeof window === 'undefined') return false
+    const saved = localStorage.getItem('gws-dark-mode')
+    const prefersDark = saved === 'true' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)
+    if (prefersDark) document.documentElement.classList.add('dark')
+    return prefersDark
+  })
+  const toggle = useCallback(() => {
+    setDark(prev => {
+      const next = !prev
+      if (next) {
+        document.documentElement.classList.add('dark')
+      } else {
+        document.documentElement.classList.remove('dark')
+      }
+      localStorage.setItem('gws-dark-mode', String(next))
+      return next
+    })
+  }, [])
+  return { dark, toggle }
+}
 
 // ── Data fetcher map ──
 async function fetchEndpoint(endpoint: string) {
@@ -64,9 +91,20 @@ export default function GWSPlatform() {
   const [search, setSearch] = useState('')
   const [detailPanel, setDetailPanel] = useState<DetailPanelState>({ open: false, type: '', data: null })
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [commandOpen, setCommandOpen] = useState(false)
+
+  const { dark, toggle: toggleDark } = useDarkMode()
+
+  // ── Toast wrapper ──
+  const showToast = useCallback((type: 'success' | 'error', message: string) => {
+    if (type === 'success') {
+      toast.success(message, { duration: 3000 })
+    } else {
+      toast.error(message, { duration: 4000 })
+    }
+  }, [])
 
   // ── Refresh Data Function ──
-  // Re-fetches specific endpoints and updates only the changed state
   const refreshData = useCallback(async (endpoints?: string[]) => {
     const allEndpoints: Record<string, () => Promise<void>> = {
       '/api/dashboard': async () => { const d = await fetchEndpoint('/api/dashboard'); setDashData(d) },
@@ -93,7 +131,6 @@ export default function GWSPlatform() {
     }
   }, [])
 
-  // Also refresh dashboard when related data changes
   const refreshWithDashboard = useCallback(async (endpoints: string[]) => {
     const eps = new Set([...endpoints, '/api/dashboard'])
     await refreshData(Array.from(eps))
@@ -130,12 +167,14 @@ export default function GWSPlatform() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'status-change', ids: idsArray, status }),
           })
+          showToast('success', `${idsArray.length} clients updated to ${status}`)
         } else if (action === 'delete') {
           await fetch('/api/clients/bulk', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'delete', ids: idsArray }),
           })
+          showToast('success', `${idsArray.length} clients deleted`)
         } else if (action === 'export') {
           const res = await fetch('/api/clients/bulk', {
             method: 'POST',
@@ -144,13 +183,10 @@ export default function GWSPlatform() {
           })
           if (res.ok) {
             const data = await res.json()
-            // Trigger CSV download
             const csv = convertToCSV(data.data)
             downloadCSV(csv, 'clients-export.csv')
+            showToast('success', 'Export downloaded')
           }
-        } else if (action === 'assign') {
-          // For now, just log - assignment is more complex
-          console.log('Bulk assign for clients:', idsArray)
         }
         await refreshWithDashboard(['/api/clients'])
       } else if (page === 'projects') {
@@ -161,12 +197,14 @@ export default function GWSPlatform() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'status-change', ids: idsArray, status }),
           })
+          showToast('success', `${idsArray.length} projects updated to ${status}`)
         } else if (action === 'delete') {
           await fetch('/api/projects/bulk', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'delete', ids: idsArray }),
           })
+          showToast('success', `${idsArray.length} projects deleted`)
         } else if (action === 'export') {
           const res = await fetch('/api/projects/bulk', {
             method: 'POST',
@@ -177,13 +215,11 @@ export default function GWSPlatform() {
             const data = await res.json()
             const csv = convertToCSV(data.data)
             downloadCSV(csv, 'projects-export.csv')
+            showToast('success', 'Export downloaded')
           }
-        } else if (action === 'assign') {
-          console.log('Bulk assign for projects:', idsArray)
         }
         await refreshWithDashboard(['/api/projects'])
       } else if (page === 'finance') {
-        // For invoices, do individual PATCH calls
         if (action.startsWith('status-')) {
           const status = action.replace('status-', '')
           await Promise.all(idsArray.map(id =>
@@ -193,11 +229,7 @@ export default function GWSPlatform() {
               body: JSON.stringify({ status }),
             })
           ))
-        } else if (action === 'delete') {
-          // Bulk delete invoices not supported yet - skip
-          console.log('Bulk delete invoices:', idsArray)
-        } else if (action === 'export') {
-          console.log('Export invoices:', idsArray)
+          showToast('success', `${idsArray.length} invoices updated`)
         }
         await refreshWithDashboard(['/api/finance'])
       } else if (page === 'approvals') {
@@ -210,11 +242,11 @@ export default function GWSPlatform() {
               body: JSON.stringify({ status }),
             })
           ))
+          showToast('success', `${idsArray.length} approvals updated`)
         }
         await refreshWithDashboard(['/api/approvals'])
       } else if (page === 'documents') {
         if (action.startsWith('status-') && action === 'status-active') {
-          // Verify all selected documents
           await Promise.all(idsArray.map(id =>
             fetch(`/api/documents/${id}`, {
               method: 'PATCH',
@@ -222,10 +254,12 @@ export default function GWSPlatform() {
               body: JSON.stringify({ is_verified: true }),
             })
           ))
+          showToast('success', `${idsArray.length} documents verified`)
         } else if (action === 'delete') {
           await Promise.all(idsArray.map(id =>
             fetch(`/api/documents/${id}`, { method: 'DELETE' })
           ))
+          showToast('success', `${idsArray.length} documents deleted`)
         }
         await refreshWithDashboard(['/api/documents'])
       } else if (page === 'communications') {
@@ -238,19 +272,20 @@ export default function GWSPlatform() {
               body: JSON.stringify({ status: status || 'delivered' }),
             })
           ))
+          showToast('success', `${idsArray.length} communications updated`)
         }
         await refreshWithDashboard(['/api/communications'])
       }
     } catch (e) {
       console.error('Bulk action error:', e)
+      showToast('error', 'Bulk action failed')
     }
 
     setSelectedIds(new Set())
-  }, [selectedIds, page, refreshWithDashboard])
+  }, [selectedIds, page, refreshWithDashboard, showToast])
 
   useEffect(() => {
     async function fetchAll() {
-      // Use allSettled so one failing endpoint doesn't block the whole app
       const endpoints = [
         { key: 'dashboard', url: '/api/dashboard' },
         { key: 'clients', url: '/api/clients' },
@@ -268,17 +303,15 @@ export default function GWSPlatform() {
         { key: 'reports', url: '/api/reports' },
       ]
 
-      // Fetch dashboard first for quick load, then everything else in parallel
       try {
         const dashRes = await fetchEndpoint('/api/dashboard')
         setDashData(dashRes)
-        setLoading(false) // Show UI as soon as dashboard loads
+        setLoading(false)
       } catch (e) {
         console.error('Dashboard fetch failed:', e)
-        setLoading(false) // Still show UI even if dashboard fails
+        setLoading(false)
       }
 
-      // Fetch remaining data in parallel - each independent
       const remaining = endpoints.filter(e => e.key !== 'dashboard')
       const results = await Promise.allSettled(
         remaining.map(async (ep) => {
@@ -292,7 +325,6 @@ export default function GWSPlatform() {
         })
       )
 
-      // Apply results
       for (const result of results) {
         if (result.status === 'fulfilled' && result.value?.data) {
           const { key, data } = result.value
@@ -317,10 +349,21 @@ export default function GWSPlatform() {
     fetchAll()
   }, [])
 
+  // ── Command Palette Keyboard Shortcut ──
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setCommandOpen(prev => !prev)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   const openDetail = (type: string, data: any) => setDetailPanel({ open: true, type, data })
   const closeDetail = () => setDetailPanel({ open: false, type: '', data: null })
 
-  // Determine which endpoints to refresh when detail panel actions fire
   const getRefreshEndpoints = (type: string): string[] => {
     switch (type) {
       case 'client': return ['/api/clients', '/api/dashboard']
@@ -363,11 +406,11 @@ export default function GWSPlatform() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="w-14 h-14 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <h2 className="text-lg font-semibold text-slate-700">GWS Platform V2</h2>
-          <p className="text-sm text-slate-500">Connecting to Prisma Postgres...</p>
+          <h2 className="text-lg font-semibold text-foreground">GWS Platform V2</h2>
+          <p className="text-sm text-muted-foreground">Connecting to Prisma Postgres...</p>
         </div>
       </div>
     )
@@ -375,7 +418,6 @@ export default function GWSPlatform() {
 
   const m = dashData?.metrics || {}
 
-  // Create a refresh callback for each page type
   const pageRefreshMap: Record<string, () => void> = {
     clients: () => refreshWithDashboard(['/api/clients']),
     projects: () => refreshWithDashboard(['/api/projects']),
@@ -387,14 +429,14 @@ export default function GWSPlatform() {
 
   const renderPage = () => {
     switch (page) {
-      case 'dashboard': return <DashboardPage m={m} dashData={dashData} onNavigate={setPage} openDetail={openDetail} clients={clients} projects={projects} financeData={financeData} />
-      case 'clients': return <ClientsPage clients={clients} search={search} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} onRefresh={pageRefreshMap.clients} />
-      case 'projects': return <ProjectsPage projects={projects} clients={clients} search={search} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} onRefresh={pageRefreshMap.projects} />
+      case 'dashboard': return <DashboardPage m={m} dashData={dashData} onNavigate={setPage} openDetail={openDetail} clients={clients} projects={projects} financeData={financeData} eventsData={eventsData} />
+      case 'clients': return <ClientsPage clients={clients} search={search} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} onRefresh={pageRefreshMap.clients} onToast={showToast} />
+      case 'projects': return <ProjectsPage projects={projects} clients={clients} search={search} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} onRefresh={pageRefreshMap.projects} onToast={showToast} />
       case 'workflows': return <WorkflowsPage workflows={workflows} openDetail={openDetail} />
-      case 'spatial': return <SpatialPage spatial={spatial} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} />
+      case 'spatial': return <SpatialPage spatial={spatial} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} projects={projects} />
       case 'field-sync': return <FieldSyncPage fieldSync={fieldSync} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} />
       case 'ai': return <AIPage aiData={aiData} openDetail={openDetail} />
-      case 'finance': return <FinancePage financeData={financeData} clients={clients} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} onRefresh={pageRefreshMap.finance} />
+      case 'finance': return <FinancePage financeData={financeData} clients={clients} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} onRefresh={pageRefreshMap.finance} onToast={showToast} />
       case 'documents': return <DocumentsPage documentsData={documentsData} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} clients={clients} onRefresh={pageRefreshMap.documents} />
       case 'communications': return <CommunicationsPage commsData={commsData} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} clients={clients} onRefresh={pageRefreshMap.communications} />
       case 'approvals': return <ApprovalsPage approvalsData={approvalsData} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} onRefresh={pageRefreshMap.approvals} />
@@ -417,7 +459,7 @@ export default function GWSPlatform() {
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
                   <span className="font-semibold text-sm">GWS Platform</span>
-                  <span className="text-[11px] text-slate-500">V2 — Uganda</span>
+                  <span className="text-[11px] text-muted-foreground">V2 — Uganda</span>
                 </div>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -452,7 +494,7 @@ export default function GWSPlatform() {
         <SidebarFooter>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton size="sm" className="text-xs text-slate-500">
+              <SidebarMenuButton size="sm" className="text-xs text-muted-foreground">
                 <Database className="size-3.5" />
                 <span>Prisma Postgres • 22 tables</span>
               </SidebarMenuButton>
@@ -463,25 +505,33 @@ export default function GWSPlatform() {
       </Sidebar>
 
       <SidebarInset>
-        <header className="flex h-14 items-center gap-3 border-b bg-white/80 backdrop-blur-sm px-4 sticky top-0 z-40">
+        <header className="flex h-14 items-center gap-3 border-b bg-background/80 backdrop-blur-sm px-4 sticky top-0 z-40">
           <SidebarTrigger />
           <Separator orientation="vertical" className="h-5" />
           <div className="flex-1 flex items-center gap-2">
-            <h1 className="text-sm font-semibold text-slate-900">
+            <h1 className="text-sm font-semibold">
               {NAV_ITEMS.find(n => n.id === page)?.label || 'Dashboard'}
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            <div className="relative hidden sm:block">
-              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-              <Input
-                placeholder="Search..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="pl-8 h-8 w-48 text-xs bg-slate-50 border-slate-200"
-              />
-            </div>
-            <Badge variant="outline" className="text-emerald-700 border-emerald-200 bg-emerald-50 text-[10px] hidden sm:flex">
+            {/* Command Palette Trigger */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 hidden sm:flex items-center gap-2 text-xs text-muted-foreground w-48 justify-start"
+              onClick={() => setCommandOpen(true)}
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span>Search...</span>
+              <kbd className="ml-auto pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+                <span className="text-xs">⌘</span>K
+              </kbd>
+            </Button>
+            {/* Dark Mode Toggle */}
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={toggleDark} title={dark ? 'Switch to light mode' : 'Switch to dark mode'}>
+              {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </Button>
+            <Badge variant="outline" className="text-emerald-700 border-emerald-200 bg-emerald-50 text-[10px] hidden sm:flex dark:text-emerald-400 dark:border-emerald-800 dark:bg-emerald-950">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse" />
               Live
             </Badge>
@@ -548,6 +598,18 @@ export default function GWSPlatform() {
           </ScrollArea>
         </SheetContent>
       </Sheet>
+
+      {/* Command Palette */}
+      <CommandPalette
+        open={commandOpen}
+        onOpenChange={setCommandOpen}
+        onNavigate={(p) => { setPage(p); setSearch(''); setSelectedIds(new Set()) }}
+        openDetail={openDetail}
+        clients={clients}
+        projects={projects}
+        invoices={financeData?.invoices || []}
+        workflows={workflows}
+      />
     </SidebarProvider>
   )
 }
