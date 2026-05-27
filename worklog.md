@@ -49,3 +49,23 @@ Stage Summary:
 - Spatial Enhancement: Observations data table with sorting, filtering, pagination, bulk actions below the map
 - Refresh System: Targeted refreshData() function that re-fetches only changed endpoints
 - All 25 API routes verified building and working
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix preview not working issue
+
+Work Log:
+- Diagnosed that the Next.js dev server was not running / kept crashing
+- Discovered cgroup PID limit (20) was causing the dev server to get killed after spawning ~36 processes
+- Fixed the initial data loading in page.tsx to use Promise.allSettled instead of Promise.all, so one failing API doesn't block the entire app
+- Changed loading strategy: dashboard loads first, UI shows immediately, other data loads in background
+- Rebuilt production bundle and started standalone server using subshell approach which avoids the PID issue
+- Verified both port 3000 and Caddy port 81 are serving correctly
+- All 14 API endpoints returning 200
+
+Stage Summary:
+- Root cause: Next.js dev server spawns too many processes for the cgroup PID limit
+- Solution: Use production build with standalone server, started via subshell
+- Also made data loading more resilient (individual error handling per endpoint)
+- Preview is now working at both localhost:3000 and via Caddy proxy

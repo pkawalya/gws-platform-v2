@@ -250,29 +250,69 @@ export default function GWSPlatform() {
 
   useEffect(() => {
     async function fetchAll() {
+      // Use allSettled so one failing endpoint doesn't block the whole app
+      const endpoints = [
+        { key: 'dashboard', url: '/api/dashboard' },
+        { key: 'clients', url: '/api/clients' },
+        { key: 'projects', url: '/api/projects' },
+        { key: 'workflows', url: '/api/workflows' },
+        { key: 'spatial', url: '/api/spatial' },
+        { key: 'field-sync', url: '/api/field-sync' },
+        { key: 'ai', url: '/api/ai' },
+        { key: 'finance', url: '/api/finance' },
+        { key: 'documents', url: '/api/documents' },
+        { key: 'communications', url: '/api/communications' },
+        { key: 'approvals', url: '/api/approvals' },
+        { key: 'events', url: '/api/events' },
+        { key: 'organizations', url: '/api/organizations' },
+        { key: 'reports', url: '/api/reports' },
+      ]
+
+      // Fetch dashboard first for quick load, then everything else in parallel
       try {
-        const [d, c, p, w, s, f, a, fin, docs, comms, approvals, events, orgs, reps] = await Promise.all([
-          fetchEndpoint('/api/dashboard'),
-          fetchEndpoint('/api/clients'),
-          fetchEndpoint('/api/projects'),
-          fetchEndpoint('/api/workflows'),
-          fetchEndpoint('/api/spatial'),
-          fetchEndpoint('/api/field-sync'),
-          fetchEndpoint('/api/ai'),
-          fetchEndpoint('/api/finance'),
-          fetchEndpoint('/api/documents'),
-          fetchEndpoint('/api/communications'),
-          fetchEndpoint('/api/approvals'),
-          fetchEndpoint('/api/events'),
-          fetchEndpoint('/api/organizations'),
-          fetchEndpoint('/api/reports'),
-        ])
-        setDashData(d); setClients(c); setProjects(p); setWorkflows(w)
-        setSpatial(s); setFieldSync(f); setAiData(a)
-        setFinanceData(fin); setDocumentsData(docs); setCommsData(comms)
-        setApprovalsData(approvals); setEventsData(events); setOrgsData(orgs)
-        setReportsData(reps)
-      } catch (e) { console.error(e) } finally { setLoading(false) }
+        const dashRes = await fetchEndpoint('/api/dashboard')
+        setDashData(dashRes)
+        setLoading(false) // Show UI as soon as dashboard loads
+      } catch (e) {
+        console.error('Dashboard fetch failed:', e)
+        setLoading(false) // Still show UI even if dashboard fails
+      }
+
+      // Fetch remaining data in parallel - each independent
+      const remaining = endpoints.filter(e => e.key !== 'dashboard')
+      const results = await Promise.allSettled(
+        remaining.map(async (ep) => {
+          try {
+            const data = await fetchEndpoint(ep.url)
+            return { key: ep.key, data }
+          } catch (e) {
+            console.error(`Failed to fetch ${ep.url}:`, e)
+            return { key: ep.key, data: null }
+          }
+        })
+      )
+
+      // Apply results
+      for (const result of results) {
+        if (result.status === 'fulfilled' && result.value?.data) {
+          const { key, data } = result.value
+          switch (key) {
+            case 'clients': setClients(data); break
+            case 'projects': setProjects(data); break
+            case 'workflows': setWorkflows(data); break
+            case 'spatial': setSpatial(data); break
+            case 'field-sync': setFieldSync(data); break
+            case 'ai': setAiData(data); break
+            case 'finance': setFinanceData(data); break
+            case 'documents': setDocumentsData(data); break
+            case 'communications': setCommsData(data); break
+            case 'approvals': setApprovalsData(data); break
+            case 'events': setEventsData(data); break
+            case 'organizations': setOrgsData(data); break
+            case 'reports': setReportsData(data); break
+          }
+        }
+      }
     }
     fetchAll()
   }, [])
