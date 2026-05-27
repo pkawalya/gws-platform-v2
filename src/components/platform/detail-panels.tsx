@@ -7,19 +7,58 @@ import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   MapPin, CheckCircle2, Clock3, Receipt, DollarSign, FileText,
   MessageSquare, ShieldCheck, ScrollText, Cpu, GitBranch,
+  ChevronDown, Eye, Send, Trash2, MoreHorizontal,
 } from 'lucide-react'
 import { fmt, statusBadge, PRIORITY_BADGE } from './constants'
 import { DetailField } from './helpers'
 import type { ClientRecord, ProjectRecord } from './types'
 
+// ── Action helper to call PATCH APIs ──
+async function patchRecord(endpoint: string, data: Record<string, unknown>) {
+  const res = await fetch(endpoint, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) throw new Error(`Failed to update ${endpoint}`)
+  return res.json()
+}
+
+async function deleteRecord(endpoint: string) {
+  const res = await fetch(endpoint, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`Failed to delete ${endpoint}`)
+  return res.json()
+}
+
 // ── Client Detail with Workspace Tabs ──
-export function ClientDetail({ data }: { data: ClientRecord }) {
+export function ClientDetail({ data, onRefresh }: { data: ClientRecord; onRefresh?: () => void }) {
   const [activeTab, setActiveTab] = useState<'overview' | 'projects' | 'finance' | 'documents' | 'communications' | 'approvals'>('overview')
+  const [actionLoading, setActionLoading] = useState(false)
 
   if (!data) return null
   const clientName = data.client_type === 'company' ? data.company_name : `${data.first_name} ${data.last_name}`
+
+  const handleStatusChange = async (newStatus: string) => {
+    setActionLoading(true)
+    try {
+      await patchRecord(`/api/clients/${data.id}`, { status: newStatus })
+      onRefresh?.()
+    } catch (e) { console.error(e) } finally { setActionLoading(false) }
+  }
+
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to delete this client?')) return
+    setActionLoading(true)
+    try {
+      await deleteRecord(`/api/clients/${data.id}`)
+      onRefresh?.()
+    } catch (e) { console.error(e) } finally { setActionLoading(false) }
+  }
 
   const TABS = [
     { id: 'overview' as const, label: 'Overview', icon: null },
@@ -32,15 +71,32 @@ export function ClientDetail({ data }: { data: ClientRecord }) {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center text-lg font-bold text-emerald-700">
-          {data.client_type === 'company' ? (data.company_name?.[0] || 'C') : `${data.first_name?.[0] || ''}${data.last_name?.[0] || ''}`}
+      {/* Header with Status Actions */}
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center text-lg font-bold text-emerald-700">
+            {data.client_type === 'company' ? (data.company_name?.[0] || 'C') : `${data.first_name?.[0] || ''}${data.last_name?.[0] || ''}`}
+          </div>
+          <div>
+            <p className="font-semibold">{clientName}</p>
+            {statusBadge(data.status)}
+          </div>
         </div>
-        <div>
-          <p className="font-semibold">{clientName}</p>
-          {statusBadge(data.status)}
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8 text-xs" disabled={actionLoading}>
+              Actions <ChevronDown className="w-3 h-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleStatusChange('active')}>Set Active</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleStatusChange('prospect')}>Set Prospect</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleStatusChange('pending')}>Set Pending</DropdownMenuItem>
+            <DropdownMenuItem className="text-red-600" onClick={handleDelete}>
+              <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Delete Client
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Workspace Tabs */}
@@ -162,16 +218,42 @@ export function ClientDetail({ data }: { data: ClientRecord }) {
 }
 
 // ── Project Detail ──
-export function ProjectDetail({ data }: { data: ProjectRecord }) {
+export function ProjectDetail({ data, onRefresh }: { data: ProjectRecord; onRefresh?: () => void }) {
+  const [actionLoading, setActionLoading] = useState(false)
+
   if (!data) return null
+
+  const handleStatusChange = async (newStatus: string) => {
+    setActionLoading(true)
+    try {
+      await patchRecord(`/api/projects/${data.id}`, { status: newStatus })
+      onRefresh?.()
+    } catch (e) { console.error(e) } finally { setActionLoading(false) }
+  }
+
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center"><MapPin className="w-6 h-6 text-blue-600" /></div>
-        <div>
-          <p className="font-semibold">{data.title}</p>
-          <div className="flex items-center gap-2 mt-1">{statusBadge(data.status)}<Badge variant="outline" className={`text-xs ${PRIORITY_BADGE[data.priority] || ''}`}>{data.priority}</Badge></div>
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center"><MapPin className="w-6 h-6 text-blue-600" /></div>
+          <div>
+            <p className="font-semibold">{data.title}</p>
+            <div className="flex items-center gap-2 mt-1">{statusBadge(data.status)}<Badge variant="outline" className={`text-xs ${PRIORITY_BADGE[data.priority] || ''}`}>{data.priority}</Badge></div>
+          </div>
         </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8 text-xs" disabled={actionLoading}>
+              Status <ChevronDown className="w-3 h-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleStatusChange('intake')}>Intake</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleStatusChange('field_survey')}>Field Survey</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleStatusChange('data_processing')}>Data Processing</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleStatusChange('completed')}>Completed</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       <Separator />
       <div className="grid grid-cols-2 gap-4">
@@ -303,13 +385,40 @@ export function AIModelDetail({ data }: any) {
 }
 
 // ── Invoice Detail ──
-export function InvoiceDetail({ data }: any) {
+export function InvoiceDetail({ data, onRefresh }: { data: any; onRefresh?: () => void }) {
+  const [actionLoading, setActionLoading] = useState(false)
+
   if (!data) return null
+
+  const handleStatusChange = async (newStatus: string) => {
+    setActionLoading(true)
+    try {
+      await patchRecord(`/api/invoices/${data.id}`, { status: newStatus })
+      onRefresh?.()
+    } catch (e) { console.error(e) } finally { setActionLoading(false) }
+  }
+
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <div className="w-12 h-12 rounded-lg bg-emerald-100 flex items-center justify-center"><Receipt className="w-6 h-6 text-emerald-600" /></div>
-        <div><p className="font-semibold">{data.invoice_number}</p>{statusBadge(data.status)}</div>
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-lg bg-emerald-100 flex items-center justify-center"><Receipt className="w-6 h-6 text-emerald-600" /></div>
+          <div><p className="font-semibold">{data.invoice_number}</p>{statusBadge(data.status)}</div>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8 text-xs" disabled={actionLoading}>
+              Status <ChevronDown className="w-3 h-3 ml-1" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleStatusChange('draft')}>Draft</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleStatusChange('sent')}>Sent</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleStatusChange('pending')}>Pending</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleStatusChange('paid')}>Paid</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleStatusChange('cancelled')}>Cancelled</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       <Separator />
       <div className="grid grid-cols-2 gap-4">
@@ -348,16 +457,57 @@ export function QuotationDetail({ data }: any) {
 }
 
 // ── Document Detail ──
-export function DocumentDetail({ data }: any) {
+export function DocumentDetail({ data, onRefresh }: { data: any; onRefresh?: () => void }) {
+  const [actionLoading, setActionLoading] = useState(false)
+
   if (!data) return null
+
+  const handleVerify = async () => {
+    setActionLoading(true)
+    try {
+      await patchRecord(`/api/documents/${data.id}`, { is_verified: true })
+      onRefresh?.()
+    } catch (e) { console.error(e) } finally { setActionLoading(false) }
+  }
+
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to delete this document?')) return
+    setActionLoading(true)
+    try {
+      await deleteRecord(`/api/documents/${data.id}`)
+      onRefresh?.()
+    } catch (e) { console.error(e) } finally { setActionLoading(false) }
+  }
+
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <div className="w-12 h-12 rounded-lg bg-amber-100 flex items-center justify-center"><FileText className="w-6 h-6 text-amber-600" /></div>
-        <div><p className="font-semibold">{data.title}</p>
-          <Badge variant="outline" className={`text-[10px] mt-0.5 ${data.is_verified ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200'}`}>
-            {data.is_verified ? '✓ Verified' : 'Unverified'}
-          </Badge>
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-lg bg-amber-100 flex items-center justify-center"><FileText className="w-6 h-6 text-amber-600" /></div>
+          <div><p className="font-semibold">{data.title}</p>
+            <Badge variant="outline" className={`text-[10px] mt-0.5 ${data.is_verified ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200'}`}>
+              {data.is_verified ? '✓ Verified' : 'Unverified'}
+            </Badge>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {!data.is_verified && (
+            <Button size="sm" className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700" disabled={actionLoading} onClick={handleVerify}>
+              <Eye className="w-3.5 h-3.5 mr-1" /> Verify
+            </Button>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled={actionLoading}>
+                <MoreHorizontal className="w-3.5 h-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem className="text-red-600" onClick={handleDelete}>
+                <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Delete Document
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       <Separator />
@@ -376,19 +526,57 @@ export function DocumentDetail({ data }: any) {
 }
 
 // ── Communication Detail ──
-export function CommunicationDetail({ data }: any) {
+export function CommunicationDetail({ data, onRefresh }: { data: any; onRefresh?: () => void }) {
+  const [actionLoading, setActionLoading] = useState(false)
+
   if (!data) return null
+
+  const handleMarkDelivered = async () => {
+    setActionLoading(true)
+    try {
+      await patchRecord(`/api/communications/${data.id}`, { status: 'delivered' })
+      onRefresh?.()
+    } catch (e) { console.error(e) } finally { setActionLoading(false) }
+  }
+
+  const handleMarkRead = async () => {
+    setActionLoading(true)
+    try {
+      await patchRecord(`/api/communications/${data.id}`, { status: 'delivered' })
+      onRefresh?.()
+    } catch (e) { console.error(e) } finally { setActionLoading(false) }
+  }
+
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <div className="w-12 h-12 rounded-lg bg-violet-100 flex items-center justify-center"><MessageSquare className="w-6 h-6 text-violet-600" /></div>
-        <div>
-          <p className="font-semibold">{data.subject || 'No Subject'}</p>
-          <div className="flex items-center gap-2 mt-1">
-            <Badge variant="outline" className="text-[10px]">{fmt(data.channel)}</Badge>
-            <Badge className={data.direction === 'outbound' ? 'bg-blue-100 text-blue-800 text-[10px]' : 'bg-emerald-100 text-emerald-800 text-[10px]'}>{fmt(data.direction)}</Badge>
-            {statusBadge(data.status)}
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-lg bg-violet-100 flex items-center justify-center"><MessageSquare className="w-6 h-6 text-violet-600" /></div>
+          <div>
+            <p className="font-semibold">{data.subject || 'No Subject'}</p>
+            <div className="flex items-center gap-2 mt-1">
+              <Badge variant="outline" className="text-[10px]">{fmt(data.channel)}</Badge>
+              <Badge className={data.direction === 'outbound' ? 'bg-blue-100 text-blue-800 text-[10px]' : 'bg-emerald-100 text-emerald-800 text-[10px]'}>{fmt(data.direction)}</Badge>
+              {statusBadge(data.status)}
+            </div>
           </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {data.status === 'queued' && (
+            <Button size="sm" className="h-8 text-xs bg-blue-600 hover:bg-blue-700" disabled={actionLoading} onClick={handleMarkRead}>
+              <Send className="w-3.5 h-3.5 mr-1" /> Send
+            </Button>
+          )}
+          {data.status === 'sent' && (
+            <Button size="sm" className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700" disabled={actionLoading} onClick={handleMarkDelivered}>
+              <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Delivered
+            </Button>
+          )}
+          {(data.status === 'pending' || data.status === 'received') && (
+            <Button size="sm" className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700" disabled={actionLoading} onClick={handleMarkRead}>
+              <Eye className="w-3.5 h-3.5 mr-1" /> Mark Read
+            </Button>
+          )}
         </div>
       </div>
       <Separator />
@@ -405,13 +593,62 @@ export function CommunicationDetail({ data }: any) {
 }
 
 // ── Approval Detail ──
-export function ApprovalDetail({ data }: any) {
+export function ApprovalDetail({ data, onRefresh }: { data: any; onRefresh?: () => void }) {
+  const [actionLoading, setActionLoading] = useState(false)
+
   if (!data) return null
+
+  const handleApprove = async () => {
+    setActionLoading(true)
+    try {
+      await patchRecord(`/api/approvals/${data.id}`, { status: 'approved', approved_by: 'current_user' })
+      onRefresh?.()
+    } catch (e) { console.error(e) } finally { setActionLoading(false) }
+  }
+
+  const handleDefer = async () => {
+    setActionLoading(true)
+    try {
+      await patchRecord(`/api/approvals/${data.id}`, { status: 'deferred' })
+      onRefresh?.()
+    } catch (e) { console.error(e) } finally { setActionLoading(false) }
+  }
+
+  const handleReject = async () => {
+    setActionLoading(true)
+    try {
+      await patchRecord(`/api/approvals/${data.id}`, { status: 'rejected' })
+      onRefresh?.()
+    } catch (e) { console.error(e) } finally { setActionLoading(false) }
+  }
+
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <div className="w-12 h-12 rounded-lg bg-amber-100 flex items-center justify-center"><ShieldCheck className="w-6 h-6 text-amber-600" /></div>
-        <div><p className="font-semibold">{fmt(data.step_name)}</p>{statusBadge(data.status)}</div>
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-lg bg-amber-100 flex items-center justify-center"><ShieldCheck className="w-6 h-6 text-amber-600" /></div>
+          <div><p className="font-semibold">{fmt(data.step_name)}</p>{statusBadge(data.status)}</div>
+        </div>
+        {data.status === 'pending' && (
+          <div className="flex items-center gap-2">
+            <Button size="sm" className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700" disabled={actionLoading} onClick={handleApprove}>
+              <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Approve
+            </Button>
+            <Button size="sm" variant="outline" className="h-8 text-xs" disabled={actionLoading} onClick={handleDefer}>
+              <Clock3 className="w-3.5 h-3.5 mr-1" /> Defer
+            </Button>
+            <Button size="sm" variant="destructive" className="h-8 text-xs" disabled={actionLoading} onClick={handleReject}>
+              Reject
+            </Button>
+          </div>
+        )}
+        {data.status === 'deferred' && (
+          <div className="flex items-center gap-2">
+            <Button size="sm" className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700" disabled={actionLoading} onClick={handleApprove}>
+              <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Approve
+            </Button>
+          </div>
+        )}
       </div>
       <Separator />
       <div className="grid grid-cols-2 gap-4">

@@ -25,9 +25,10 @@ interface ProjectsPageProps {
   selectedIds: Set<number>
   toggleSelect: (id: number) => void
   toggleAll: (ids: number[]) => void
+  onRefresh?: () => void
 }
 
-export function ProjectsPage({ projects, clients, search, openDetail, selectedIds, toggleSelect, toggleAll }: ProjectsPageProps) {
+export function ProjectsPage({ projects, clients, search, openDetail, selectedIds, toggleSelect, toggleAll, onRefresh }: ProjectsPageProps) {
   const [sortField, setSortField] = useState('')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -68,7 +69,7 @@ export function ProjectsPage({ projects, clients, search, openDetail, selectedId
       if (res.ok) {
         setShowCreateDialog(false)
         setCreateForm({ title: '', project_type: 'cadastral', client_id: '', district: '', priority: 'normal', status: 'intake', description: '' })
-        window.location.reload()
+        onRefresh?.()
       }
     } catch (e) { console.error(e) }
   }

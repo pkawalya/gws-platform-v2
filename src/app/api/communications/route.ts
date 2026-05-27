@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { serialize } from '@/lib/json'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET() {
   try {
@@ -18,5 +18,35 @@ export async function GET() {
   } catch (error) {
     console.error('Communications API error:', error)
     return NextResponse.json({ error: 'Failed to fetch communications' }, { status: 500 })
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { subject, body: messageBody, channel, direction, client_id } = body
+
+    if (!messageBody || !channel || !direction || !client_id) {
+      return NextResponse.json({ error: 'body, channel, direction, and client_id are required' }, { status: 400 })
+    }
+
+    const communication = await db.communication.create({
+      data: {
+        subject: subject || null,
+        body: messageBody,
+        channel,
+        direction,
+        client_id: BigInt(client_id),
+        status: direction === 'outbound' ? 'queued' : 'received',
+        sent_at: direction === 'outbound' ? new Date() : null,
+      },
+      include: {
+        client: { select: { id: true, client_ref: true, first_name: true, last_name: true, company_name: true, client_type: true } },
+      },
+    })
+    return NextResponse.json(serialize(communication), { status: 201 })
+  } catch (error) {
+    console.error('Create communication error:', error)
+    return NextResponse.json({ error: 'Failed to create communication' }, { status: 500 })
   }
 }

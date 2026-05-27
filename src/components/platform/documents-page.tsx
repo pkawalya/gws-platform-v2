@@ -3,13 +3,19 @@
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { FileText, ShieldCheck, AlertCircle, Layers, ChevronRight } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { FileText, ShieldCheck, AlertCircle, Layers, ChevronRight, Plus } from 'lucide-react'
 import { fmt, statusBadge } from './constants'
 import { SortableHeader } from './helpers'
 import { DataTablePagination } from './data-table-pagination'
+import type { ClientRecord } from './types'
 
 interface DocumentsPageProps {
   documentsData: any
@@ -17,14 +23,25 @@ interface DocumentsPageProps {
   selectedIds: Set<number>
   toggleSelect: (id: number) => void
   toggleAll: (ids: number[]) => void
+  clients: ClientRecord[]
+  onRefresh?: () => void
 }
 
-export function DocumentsPage({ documentsData, openDetail, selectedIds, toggleSelect, toggleAll }: DocumentsPageProps) {
+export function DocumentsPage({ documentsData, openDetail, selectedIds, toggleSelect, toggleAll, clients, onRefresh }: DocumentsPageProps) {
   const [sortField, setSortField] = useState('')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [typeFilter, setTypeFilter] = useState('all')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [createForm, setCreateForm] = useState({
+    title: '',
+    document_type: 'title_deed',
+    client_id: '',
+    file_path: '',
+    description: '',
+    mime_type: 'application/pdf',
+  })
   const handleSort = (field: string) => { if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setSortField(field); setSortDir('asc') } }
 
   const metrics = documentsData?.metrics || {}
@@ -40,6 +57,24 @@ export function DocumentsPage({ documentsData, openDetail, selectedIds, toggleSe
   }
 
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
+  const handleCreate = async () => {
+    try {
+      const res = await fetch('/api/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...createForm,
+          client_id: Number(createForm.client_id),
+        }),
+      })
+      if (res.ok) {
+        setShowCreateDialog(false)
+        setCreateForm({ title: '', document_type: 'title_deed', client_id: '', file_path: '', description: '', mime_type: 'application/pdf' })
+        onRefresh?.()
+      }
+    } catch (e) { console.error(e) }
+  }
 
   return (
     <div className="space-y-6">
@@ -61,6 +96,9 @@ export function DocumentsPage({ documentsData, openDetail, selectedIds, toggleSe
           <SelectTrigger className="h-8 w-44 text-xs"><SelectValue placeholder="Filter by type" /></SelectTrigger>
           <SelectContent><SelectItem value="all">All Types</SelectItem>{docTypes.map(t => <SelectItem key={t} value={t}>{fmt(t)}</SelectItem>)}</SelectContent>
         </Select>
+        <Button size="sm" className="h-8 bg-emerald-600 hover:bg-emerald-700 ml-auto" onClick={() => setShowCreateDialog(true)}>
+          <Plus className="w-3.5 h-3.5 mr-1" />Upload Document
+        </Button>
       </div>
       <Card>
         <CardContent className="p-0">
@@ -95,6 +133,61 @@ export function DocumentsPage({ documentsData, openDetail, selectedIds, toggleSe
           <DataTablePagination totalItems={filtered.length} pageSize={pageSize} currentPage={currentPage} onPageChange={setCurrentPage} onPageSizeChange={(s) => { setPageSize(s); setCurrentPage(1) }} />
         </CardContent>
       </Card>
+
+      {/* Create Document Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Upload Document</DialogTitle>
+            <DialogDescription>Add a new document to the vault</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div><Label className="text-xs">Document Title</Label><Input className="h-9 text-xs mt-1" value={createForm.title} onChange={e => setCreateForm({ ...createForm, title: e.target.value })} placeholder="e.g. Title Deed - Kampala Plot 23" /></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label className="text-xs">Document Type</Label>
+                <Select value={createForm.document_type} onValueChange={v => setCreateForm({ ...createForm, document_type: v })}>
+                  <SelectTrigger className="h-9 text-xs mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="title_deed">Title Deed</SelectItem>
+                    <SelectItem value="survey_plan">Survey Plan</SelectItem>
+                    <SelectItem value="agreement">Agreement</SelectItem>
+                    <SelectItem value="certificate">Certificate</SelectItem>
+                    <SelectItem value="identification">Identification</SelectItem>
+                    <SelectItem value="correspondence">Correspondence</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label className="text-xs">MIME Type</Label>
+                <Select value={createForm.mime_type} onValueChange={v => setCreateForm({ ...createForm, mime_type: v })}>
+                  <SelectTrigger className="h-9 text-xs mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="application/pdf">PDF</SelectItem>
+                    <SelectItem value="image/jpeg">JPEG</SelectItem>
+                    <SelectItem value="image/png">PNG</SelectItem>
+                    <SelectItem value="application/vnd.ms-excel">Excel</SelectItem>
+                    <SelectItem value="application/msword">Word</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div><Label className="text-xs">Client</Label>
+              <Select value={createForm.client_id} onValueChange={v => setCreateForm({ ...createForm, client_id: v })}>
+                <SelectTrigger className="h-9 text-xs mt-1"><SelectValue placeholder="Select client" /></SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {clients.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.client_type === 'company' ? c.company_name : `${c.first_name} ${c.last_name}`}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label className="text-xs">File Path</Label><Input className="h-9 text-xs mt-1" value={createForm.file_path} onChange={e => setCreateForm({ ...createForm, file_path: e.target.value })} placeholder="/uploads/document.pdf" /></div>
+            <div><Label className="text-xs">Description</Label><Textarea className="text-xs mt-1" rows={2} value={createForm.description} onChange={e => setCreateForm({ ...createForm, description: e.target.value })} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setShowCreateDialog(false)}>Cancel</Button>
+            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={handleCreate} disabled={!createForm.title || !createForm.client_id}>Upload</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

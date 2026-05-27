@@ -24,9 +24,10 @@ interface ClientsPageProps {
   selectedIds: Set<number>
   toggleSelect: (id: number) => void
   toggleAll: (ids: number[]) => void
+  onRefresh?: () => void
 }
 
-export function ClientsPage({ clients, search, openDetail, selectedIds, toggleSelect, toggleAll }: ClientsPageProps) {
+export function ClientsPage({ clients, search, openDetail, selectedIds, toggleSelect, toggleAll, onRefresh }: ClientsPageProps) {
   const [sortField, setSortField] = useState('')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -69,7 +70,7 @@ export function ClientsPage({ clients, search, openDetail, selectedIds, toggleSe
       if (res.ok) {
         setShowCreateDialog(false)
         setCreateForm({ client_type: 'individual', first_name: '', last_name: '', company_name: '', email: '', phone: '', district: '', status: 'prospect', notes: '' })
-        window.location.reload()
+        onRefresh?.()
       }
     } catch (e) { console.error(e) }
   }

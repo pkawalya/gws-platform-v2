@@ -17,9 +17,10 @@ interface ApprovalsPageProps {
   selectedIds: Set<number>
   toggleSelect: (id: number) => void
   toggleAll: (ids: number[]) => void
+  onRefresh?: () => void
 }
 
-export function ApprovalsPage({ approvalsData, openDetail, selectedIds, toggleSelect, toggleAll }: ApprovalsPageProps) {
+export function ApprovalsPage({ approvalsData, openDetail, selectedIds, toggleSelect, toggleAll, onRefresh }: ApprovalsPageProps) {
   const [sortField, setSortField] = useState('')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [statusFilter, setStatusFilter] = useState('all')

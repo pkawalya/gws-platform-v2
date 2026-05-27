@@ -24,9 +24,10 @@ interface FinancePageProps {
   selectedIds: Set<number>
   toggleSelect: (id: number) => void
   toggleAll: (ids: number[]) => void
+  onRefresh?: () => void
 }
 
-export function FinancePage({ financeData, clients, openDetail, selectedIds, toggleSelect, toggleAll }: FinancePageProps) {
+export function FinancePage({ financeData, clients, openDetail, selectedIds, toggleSelect, toggleAll, onRefresh }: FinancePageProps) {
   const [sortField, setSortField] = useState('')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [tab, setTab] = useState<'invoices' | 'quotations'>('invoices')
@@ -74,7 +75,7 @@ export function FinancePage({ financeData, clients, openDetail, selectedIds, tog
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...createForm, amount, tax_amount: taxAmount, total_amount: totalAmount, currency: 'UGX' }),
       })
-      if (res.ok) { setShowCreateDialog(false); window.location.reload() }
+      if (res.ok) { setShowCreateDialog(false); onRefresh?.() }
     } catch (e) { console.error(e) }
   }
 

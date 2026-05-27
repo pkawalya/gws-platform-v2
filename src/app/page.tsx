@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuBadge,
@@ -36,6 +36,13 @@ import {
   ApprovalDetail, DomainEventDetail, ReportDetail,
 } from '@/components/platform/detail-panels'
 
+// ── Data fetcher map ──
+async function fetchEndpoint(endpoint: string) {
+  const res = await fetch(endpoint)
+  if (!res.ok) throw new Error(`Failed to fetch ${endpoint}`)
+  return res.json()
+}
+
 // ── Main App ──
 export default function GWSPlatform() {
   const [page, setPage] = useState<PageId>('dashboard')
@@ -58,6 +65,40 @@ export default function GWSPlatform() {
   const [detailPanel, setDetailPanel] = useState<DetailPanelState>({ open: false, type: '', data: null })
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
 
+  // ── Refresh Data Function ──
+  // Re-fetches specific endpoints and updates only the changed state
+  const refreshData = useCallback(async (endpoints?: string[]) => {
+    const allEndpoints: Record<string, () => Promise<void>> = {
+      '/api/dashboard': async () => { const d = await fetchEndpoint('/api/dashboard'); setDashData(d) },
+      '/api/clients': async () => { const c = await fetchEndpoint('/api/clients'); setClients(c) },
+      '/api/projects': async () => { const p = await fetchEndpoint('/api/projects'); setProjects(p) },
+      '/api/workflows': async () => { const w = await fetchEndpoint('/api/workflows'); setWorkflows(w) },
+      '/api/spatial': async () => { const s = await fetchEndpoint('/api/spatial'); setSpatial(s) },
+      '/api/field-sync': async () => { const f = await fetchEndpoint('/api/field-sync'); setFieldSync(f) },
+      '/api/ai': async () => { const a = await fetchEndpoint('/api/ai'); setAiData(a) },
+      '/api/finance': async () => { const fin = await fetchEndpoint('/api/finance'); setFinanceData(fin) },
+      '/api/documents': async () => { const docs = await fetchEndpoint('/api/documents'); setDocumentsData(docs) },
+      '/api/communications': async () => { const comms = await fetchEndpoint('/api/communications'); setCommsData(comms) },
+      '/api/approvals': async () => { const approvals = await fetchEndpoint('/api/approvals'); setApprovalsData(approvals) },
+      '/api/events': async () => { const events = await fetchEndpoint('/api/events'); setEventsData(events) },
+      '/api/organizations': async () => { const orgs = await fetchEndpoint('/api/organizations'); setOrgsData(orgs) },
+      '/api/reports': async () => { const reps = await fetchEndpoint('/api/reports'); setReportsData(reps) },
+    }
+
+    const toRefresh = endpoints || Object.keys(allEndpoints)
+    try {
+      await Promise.all(toRefresh.map(ep => allEndpoints[ep]?.()))
+    } catch (e) {
+      console.error('Refresh error:', e)
+    }
+  }, [])
+
+  // Also refresh dashboard when related data changes
+  const refreshWithDashboard = useCallback(async (endpoints: string[]) => {
+    const eps = new Set([...endpoints, '/api/dashboard'])
+    await refreshData(Array.from(eps))
+  }, [refreshData])
+
   const toggleSelect = useCallback((id: number) => {
     setSelectedIds(prev => {
       const next = new Set(prev)
@@ -75,29 +116,156 @@ export default function GWSPlatform() {
     })
   }, [])
 
-  const handleBulkAction = useCallback((action: string) => {
-    console.log(`Bulk action: ${action} on ${selectedIds.size} items`)
+  // ── Bulk Action Handler ──
+  const handleBulkAction = useCallback(async (action: string) => {
+    const idsArray = Array.from(selectedIds)
+    if (idsArray.length === 0) return
+
+    try {
+      if (page === 'clients') {
+        if (action.startsWith('status-')) {
+          const status = action.replace('status-', '')
+          await fetch('/api/clients/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'status-change', ids: idsArray, status }),
+          })
+        } else if (action === 'delete') {
+          await fetch('/api/clients/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'delete', ids: idsArray }),
+          })
+        } else if (action === 'export') {
+          const res = await fetch('/api/clients/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'export', ids: idsArray }),
+          })
+          if (res.ok) {
+            const data = await res.json()
+            // Trigger CSV download
+            const csv = convertToCSV(data.data)
+            downloadCSV(csv, 'clients-export.csv')
+          }
+        } else if (action === 'assign') {
+          // For now, just log - assignment is more complex
+          console.log('Bulk assign for clients:', idsArray)
+        }
+        await refreshWithDashboard(['/api/clients'])
+      } else if (page === 'projects') {
+        if (action.startsWith('status-')) {
+          const status = action.replace('status-', '')
+          await fetch('/api/projects/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'status-change', ids: idsArray, status }),
+          })
+        } else if (action === 'delete') {
+          await fetch('/api/projects/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'delete', ids: idsArray }),
+          })
+        } else if (action === 'export') {
+          const res = await fetch('/api/projects/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'export', ids: idsArray }),
+          })
+          if (res.ok) {
+            const data = await res.json()
+            const csv = convertToCSV(data.data)
+            downloadCSV(csv, 'projects-export.csv')
+          }
+        } else if (action === 'assign') {
+          console.log('Bulk assign for projects:', idsArray)
+        }
+        await refreshWithDashboard(['/api/projects'])
+      } else if (page === 'finance') {
+        // For invoices, do individual PATCH calls
+        if (action.startsWith('status-')) {
+          const status = action.replace('status-', '')
+          await Promise.all(idsArray.map(id =>
+            fetch(`/api/invoices/${id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status }),
+            })
+          ))
+        } else if (action === 'delete') {
+          // Bulk delete invoices not supported yet - skip
+          console.log('Bulk delete invoices:', idsArray)
+        } else if (action === 'export') {
+          console.log('Export invoices:', idsArray)
+        }
+        await refreshWithDashboard(['/api/finance'])
+      } else if (page === 'approvals') {
+        if (action.startsWith('status-')) {
+          const status = action.replace('status-', '')
+          await Promise.all(idsArray.map(id =>
+            fetch(`/api/approvals/${id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status }),
+            })
+          ))
+        }
+        await refreshWithDashboard(['/api/approvals'])
+      } else if (page === 'documents') {
+        if (action.startsWith('status-') && action === 'status-active') {
+          // Verify all selected documents
+          await Promise.all(idsArray.map(id =>
+            fetch(`/api/documents/${id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ is_verified: true }),
+            })
+          ))
+        } else if (action === 'delete') {
+          await Promise.all(idsArray.map(id =>
+            fetch(`/api/documents/${id}`, { method: 'DELETE' })
+          ))
+        }
+        await refreshWithDashboard(['/api/documents'])
+      } else if (page === 'communications') {
+        if (action.startsWith('status-')) {
+          const status = action.replace('status-', '') === 'active' ? 'delivered' : action.replace('status-', '')
+          await Promise.all(idsArray.map(id =>
+            fetch(`/api/communications/${id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: status || 'delivered' }),
+            })
+          ))
+        }
+        await refreshWithDashboard(['/api/communications'])
+      }
+    } catch (e) {
+      console.error('Bulk action error:', e)
+    }
+
     setSelectedIds(new Set())
-  }, [selectedIds])
+  }, [selectedIds, page, refreshWithDashboard])
 
   useEffect(() => {
     async function fetchAll() {
       try {
         const [d, c, p, w, s, f, a, fin, docs, comms, approvals, events, orgs, reps] = await Promise.all([
-          fetch('/api/dashboard').then(r => r.json()),
-          fetch('/api/clients').then(r => r.json()),
-          fetch('/api/projects').then(r => r.json()),
-          fetch('/api/workflows').then(r => r.json()),
-          fetch('/api/spatial').then(r => r.json()),
-          fetch('/api/field-sync').then(r => r.json()),
-          fetch('/api/ai').then(r => r.json()),
-          fetch('/api/finance').then(r => r.json()),
-          fetch('/api/documents').then(r => r.json()),
-          fetch('/api/communications').then(r => r.json()),
-          fetch('/api/approvals').then(r => r.json()),
-          fetch('/api/events').then(r => r.json()),
-          fetch('/api/organizations').then(r => r.json()),
-          fetch('/api/reports').then(r => r.json()),
+          fetchEndpoint('/api/dashboard'),
+          fetchEndpoint('/api/clients'),
+          fetchEndpoint('/api/projects'),
+          fetchEndpoint('/api/workflows'),
+          fetchEndpoint('/api/spatial'),
+          fetchEndpoint('/api/field-sync'),
+          fetchEndpoint('/api/ai'),
+          fetchEndpoint('/api/finance'),
+          fetchEndpoint('/api/documents'),
+          fetchEndpoint('/api/communications'),
+          fetchEndpoint('/api/approvals'),
+          fetchEndpoint('/api/events'),
+          fetchEndpoint('/api/organizations'),
+          fetchEndpoint('/api/reports'),
         ])
         setDashData(d); setClients(c); setProjects(p); setWorkflows(w)
         setSpatial(s); setFieldSync(f); setAiData(a)
@@ -111,6 +279,24 @@ export default function GWSPlatform() {
 
   const openDetail = (type: string, data: any) => setDetailPanel({ open: true, type, data })
   const closeDetail = () => setDetailPanel({ open: false, type: '', data: null })
+
+  // Determine which endpoints to refresh when detail panel actions fire
+  const getRefreshEndpoints = (type: string): string[] => {
+    switch (type) {
+      case 'client': return ['/api/clients', '/api/dashboard']
+      case 'project': return ['/api/projects', '/api/dashboard']
+      case 'approval': return ['/api/approvals', '/api/projects', '/api/dashboard']
+      case 'invoice': return ['/api/finance', '/api/dashboard']
+      case 'document': return ['/api/documents', '/api/dashboard']
+      case 'communication': return ['/api/communications', '/api/dashboard']
+      default: return ['/api/dashboard']
+    }
+  }
+
+  const handleDetailRefresh = useCallback(() => {
+    const endpoints = getRefreshEndpoints(detailPanel.type)
+    refreshData(endpoints)
+  }, [detailPanel.type, refreshData])
 
   const NAV_ITEMS: NavItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Overview' },
@@ -149,19 +335,29 @@ export default function GWSPlatform() {
 
   const m = dashData?.metrics || {}
 
+  // Create a refresh callback for each page type
+  const pageRefreshMap: Record<string, () => void> = {
+    clients: () => refreshWithDashboard(['/api/clients']),
+    projects: () => refreshWithDashboard(['/api/projects']),
+    finance: () => refreshWithDashboard(['/api/finance']),
+    documents: () => refreshWithDashboard(['/api/documents']),
+    communications: () => refreshWithDashboard(['/api/communications']),
+    approvals: () => refreshWithDashboard(['/api/approvals']),
+  }
+
   const renderPage = () => {
     switch (page) {
       case 'dashboard': return <DashboardPage m={m} dashData={dashData} onNavigate={setPage} openDetail={openDetail} clients={clients} projects={projects} financeData={financeData} />
-      case 'clients': return <ClientsPage clients={clients} search={search} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} />
-      case 'projects': return <ProjectsPage projects={projects} clients={clients} search={search} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} />
+      case 'clients': return <ClientsPage clients={clients} search={search} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} onRefresh={pageRefreshMap.clients} />
+      case 'projects': return <ProjectsPage projects={projects} clients={clients} search={search} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} onRefresh={pageRefreshMap.projects} />
       case 'workflows': return <WorkflowsPage workflows={workflows} openDetail={openDetail} />
-      case 'spatial': return <SpatialPage spatial={spatial} />
+      case 'spatial': return <SpatialPage spatial={spatial} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} />
       case 'field-sync': return <FieldSyncPage fieldSync={fieldSync} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} />
       case 'ai': return <AIPage aiData={aiData} openDetail={openDetail} />
-      case 'finance': return <FinancePage financeData={financeData} clients={clients} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} />
-      case 'documents': return <DocumentsPage documentsData={documentsData} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} />
-      case 'communications': return <CommunicationsPage commsData={commsData} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} />
-      case 'approvals': return <ApprovalsPage approvalsData={approvalsData} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} />
+      case 'finance': return <FinancePage financeData={financeData} clients={clients} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} onRefresh={pageRefreshMap.finance} />
+      case 'documents': return <DocumentsPage documentsData={documentsData} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} clients={clients} onRefresh={pageRefreshMap.documents} />
+      case 'communications': return <CommunicationsPage commsData={commsData} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} clients={clients} onRefresh={pageRefreshMap.communications} />
+      case 'approvals': return <ApprovalsPage approvalsData={approvalsData} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} onRefresh={pageRefreshMap.approvals} />
       case 'audit': return <AuditTrailPage eventsData={eventsData} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} />
       case 'organizations': return <OrganizationsPage orgsData={orgsData} openDetail={openDetail} />
       case 'reports': return <ReportsPage reportsData={reportsData} openDetail={openDetail} dashData={dashData} />
@@ -295,17 +491,17 @@ export default function GWSPlatform() {
           </SheetHeader>
           <ScrollArea className="flex-1 h-[calc(100vh-100px)]">
             <div className="p-6 space-y-5">
-              {detailPanel.type === 'client' && <ClientDetail data={detailPanel.data} />}
-              {detailPanel.type === 'project' && <ProjectDetail data={detailPanel.data} />}
+              {detailPanel.type === 'client' && <ClientDetail data={detailPanel.data} onRefresh={handleDetailRefresh} />}
+              {detailPanel.type === 'project' && <ProjectDetail data={detailPanel.data} onRefresh={handleDetailRefresh} />}
               {detailPanel.type === 'workflow' && <WorkflowDetail data={detailPanel.data} />}
               {detailPanel.type === 'observation' && <ObservationDetail data={detailPanel.data} />}
               {detailPanel.type === 'sync' && <SyncDetail data={detailPanel.data} />}
               {detailPanel.type === 'ai-model' && <AIModelDetail data={detailPanel.data} />}
-              {detailPanel.type === 'invoice' && <InvoiceDetail data={detailPanel.data} />}
+              {detailPanel.type === 'invoice' && <InvoiceDetail data={detailPanel.data} onRefresh={handleDetailRefresh} />}
               {detailPanel.type === 'quotation' && <QuotationDetail data={detailPanel.data} />}
-              {detailPanel.type === 'document' && <DocumentDetail data={detailPanel.data} />}
-              {detailPanel.type === 'communication' && <CommunicationDetail data={detailPanel.data} />}
-              {detailPanel.type === 'approval' && <ApprovalDetail data={detailPanel.data} />}
+              {detailPanel.type === 'document' && <DocumentDetail data={detailPanel.data} onRefresh={handleDetailRefresh} />}
+              {detailPanel.type === 'communication' && <CommunicationDetail data={detailPanel.data} onRefresh={handleDetailRefresh} />}
+              {detailPanel.type === 'approval' && <ApprovalDetail data={detailPanel.data} onRefresh={handleDetailRefresh} />}
               {detailPanel.type === 'event' && <DomainEventDetail data={detailPanel.data} />}
               {detailPanel.type === 'report' && <ReportDetail data={detailPanel.data} />}
             </div>
@@ -314,4 +510,29 @@ export default function GWSPlatform() {
       </Sheet>
     </SidebarProvider>
   )
+}
+
+// ── CSV Helpers ──
+function convertToCSV(data: any[]): string {
+  if (!data || data.length === 0) return ''
+  const keys = Object.keys(data[0]).filter(k => !k.startsWith('_') && typeof data[0][k] !== 'object')
+  const header = keys.join(',')
+  const rows = data.map(row =>
+    keys.map(k => {
+      const val = row[k]
+      if (val === null || val === undefined) return ''
+      const str = String(val).replace(/"/g, '""')
+      return `"${str}"`
+    }).join(',')
+  )
+  return [header, ...rows].join('\n')
+}
+
+function downloadCSV(csv: string, filename: string) {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(link.href)
 }
