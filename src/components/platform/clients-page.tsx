@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { ChevronRight, Phone, Mail, Plus, Search, SlidersHorizontal, Users, Inbox, Filter } from 'lucide-react'
+import { ChevronRight, Phone, Mail, Plus, Search, SlidersHorizontal, Users, Inbox, Filter, Download, FileSpreadsheet } from 'lucide-react'
 import { fmt, statusBadge, UGANDA_DISTRICTS } from './constants'
 import { SortableHeader } from './helpers'
 import { DataTablePagination } from './data-table-pagination'
@@ -47,6 +47,23 @@ export function ClientsPage({ clients, search, openDetail, selectedIds, toggleSe
   const [visibleColumns, setVisibleColumns] = useState<VisibleColumns>({ ref: true, district: true, contact: false, status: true, projects: true })
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [districtSuggestions, setDistrictSuggestions] = useState<string[]>([])
+
+  // CSV Export handler
+  const handleExport = () => {
+    const headers = ['Client Ref', 'Type', 'First Name', 'Last Name', 'Company Name', 'Email', 'Phone', 'District', 'Status', 'Projects', 'Invoices']
+    const rows = filtered.map(c => [
+      c.client_ref, c.client_type, c.first_name || '', c.last_name || '', c.company_name || '',
+      c.email || '', c.phone || '', c.district || '', c.status,
+      String(c._count.surveyProjects), String(c.invoices.length),
+    ])
+    const csv = [headers.join(','), ...rows.map(r => r.map(v => `"${v.replace(/"/g, '""')}"`).join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `clients-export-${new Date().toISOString().slice(0, 10)}.csv`; a.click()
+    URL.revokeObjectURL(url)
+    onToast?.('success', `Exported ${filtered.length} clients`)
+  }
 
   const handleSort = (field: string) => {
     if (sortField === field) { setSortDir(d => d === 'asc' ? 'desc' : 'asc') }
@@ -180,6 +197,11 @@ export function ClientsPage({ clients, search, openDetail, selectedIds, toggleSe
           <Button size="sm" className="h-8 bg-emerald-600 hover:bg-emerald-700" onClick={() => setShowCreateDialog(true)}>
             <Plus className="w-3.5 h-3.5 mr-1" />New Client
           </Button>
+          {filtered.length > 0 && (
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleExport}>
+              <FileSpreadsheet className="w-3.5 h-3.5 mr-1" />Export
+            </Button>
+          )}
         </div>
       </div>
 

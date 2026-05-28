@@ -44,10 +44,12 @@ export function SpatialPage({ spatial, openDetail, selectedIds, toggleSelect, to
       lat: Number(c.latitude), lng: Number(c.longitude),
       title: c.client_type === 'company' ? c.company_name : `${c.first_name} ${c.last_name}`,
       type: 'client' as const, status: c.status, description: c.district,
+      district: c.district,
     })) || []),
     ...(spatial?.observations?.filter((o: any) => o.latitude && o.longitude).map((o: any) => ({
       lat: Number(o.latitude), lng: Number(o.longitude),
       title: o.title, type: 'observation' as const, status: o.status, description: o.observation_type,
+      district: o.district,
     })) || []),
     // Add project locations from projects data
     ...(projects || []).filter((p: any) => p.district).map((p: any) => {
@@ -63,6 +65,7 @@ export function SpatialPage({ spatial, openDetail, selectedIds, toggleSelect, to
         lat: coords[0], lng: coords[1],
         title: p.title, type: 'project' as const, status: p.status,
         description: `${fmt(p.project_type)} — ${p.district}`,
+        district: p.district,
       }
     }),
   ].filter(m => mapLayer === 'all' || m.type === mapLayer)
@@ -148,6 +151,37 @@ export function SpatialPage({ spatial, openDetail, selectedIds, toggleSelect, to
               </div>
             </CardContent>
           </Card>
+          {/* District Cluster Summary */}
+          {(() => {
+            const districtMap: Record<string, { count: number; types: Record<string, number> }> = {}
+            mapMarkers.forEach(m => {
+              const d = m.district || m.description || 'Unknown'
+              if (!districtMap[d]) districtMap[d] = { count: 0, types: {} }
+              districtMap[d].count++
+              districtMap[d].types[m.type] = (districtMap[d].types[m.type] || 0) + 1
+            })
+            const districts = Object.entries(districtMap).sort((a, b) => b[1].count - a[1].count)
+            return districts.length > 0 ? (
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm">District Clusters ({districts.length})</CardTitle></CardHeader>
+                <CardContent className="space-y-1.5 max-h-40 overflow-y-auto">
+                  {districts.map(([name, data]) => (
+                    <div key={name} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{name}</span>
+                        <div className="flex items-center gap-1">
+                          {data.types.client ? <Badge className="bg-blue-100 text-blue-700 text-[9px] px-1 py-0">C:{data.types.client}</Badge> : null}
+                          {data.types.project ? <Badge className="bg-emerald-100 text-emerald-700 text-[9px] px-1 py-0">P:{data.types.project}</Badge> : null}
+                          {data.types.observation ? <Badge className="bg-red-100 text-red-700 text-[9px] px-1 py-0">O:{data.types.observation}</Badge> : null}
+                        </div>
+                      </div>
+                      <Badge variant="secondary" className="text-[10px]">{data.count}</Badge>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ) : null
+          })()}
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-sm">Legend</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-xs">

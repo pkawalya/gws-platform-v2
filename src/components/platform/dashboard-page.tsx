@@ -10,11 +10,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import {
   Users, Activity, GitBranch, Eye, DollarSign, CheckCircle2, Clock, AlertCircle,
   ChevronRight, Layers, Workflow, RadioTower, Cpu, MapPin, Plus, FileBarChart,
-  TrendingUp, TrendingDown, Zap, ArrowUpRight,
+  TrendingUp, TrendingDown, Zap, ArrowUpRight, CalendarDays, BarChart3,
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, Legend, AreaChart, Area,
+  FunnelChart, Funnel, LabelList,
 } from 'recharts'
 import { STATUS_COLORS, fmt, statusBadge, PRIORITY_BADGE, formatUGX } from './constants'
 import type { PageId, ProjectRecord } from './types'
@@ -29,7 +30,7 @@ function AnimatedNumber({ value, duration = 1200 }: { value: number; duration?: 
     const animate = (timestamp: number) => {
       if (!startRef.current) startRef.current = timestamp
       const progress = Math.min((timestamp - startRef.current) / duration, 1)
-      const eased = 1 - Math.pow(1 - progress, 3) // ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3)
       setDisplay(Math.floor(eased * value))
       if (progress < 1) requestAnimationFrame(animate)
     }
@@ -65,10 +66,20 @@ interface ActivityItem {
   action: string
   description: string
   timestamp: string
+  icon?: string
+}
+
+const ACTIVITY_ICONS: Record<string, React.ReactNode> = {
+  client: <Users className="w-3.5 h-3.5" />,
+  project: <MapPin className="w-3.5 h-3.5" />,
+  invoice: <DollarSign className="w-3.5 h-3.5" />,
+  approval: <CheckCircle2 className="w-3.5 h-3.5" />,
+  workflow: <GitBranch className="w-3.5 h-3.5" />,
+  observation: <Eye className="w-3.5 h-3.5" />,
 }
 
 function ActivityFeed({ events }: { events: any[] }) {
-  const activities: ActivityItem[] = (events || []).slice(0, 8).map((e: any, i: number) => ({
+  const activities: ActivityItem[] = (events || []).slice(0, 10).map((e: any, i: number) => ({
     id: `evt-${i}`,
     type: (e.aggregate || e.event_type || 'project') as ActivityItem['type'],
     action: fmt(e.event_type || e.action || 'created'),
@@ -76,37 +87,130 @@ function ActivityFeed({ events }: { events: any[] }) {
     timestamp: e.occurred_at || e.created_at || new Date().toISOString(),
   }))
 
-  const typeIcons: Record<string, string> = {
-    client: '👥', project: '📍', invoice: '💰', approval: '✅', workflow: '🔄', observation: '🔭',
-  }
   const typeColors: Record<string, string> = {
-    client: 'bg-blue-100 text-blue-700', project: 'bg-emerald-100 text-emerald-700',
-    invoice: 'bg-amber-100 text-amber-700', approval: 'bg-green-100 text-green-700',
-    workflow: 'bg-violet-100 text-violet-700', observation: 'bg-rose-100 text-rose-700',
+    client: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+    project: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+    invoice: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+    approval: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+    workflow: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
+    observation: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
+  }
+
+  const actionColors: Record<string, string> = {
+    Created: 'text-emerald-700 dark:text-emerald-300',
+    Updated: 'text-blue-700 dark:text-blue-300',
+    Deleted: 'text-red-700 dark:text-red-300',
+    Approved: 'text-green-700 dark:text-green-300',
+    Submitted: 'text-amber-700 dark:text-amber-300',
+  }
+
+  const timeAgo = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 1) return 'Just now'
+    if (mins < 60) return `${mins}m ago`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${hrs}h ago`
+    const days = Math.floor(hrs / 24)
+    if (days < 7) return `${days}d ago`
+    return new Date(dateStr).toLocaleDateString('en-UG', { month: 'short', day: 'numeric' })
   }
 
   return (
-    <div className="space-y-1 max-h-80 overflow-y-auto">
+    <div className="space-y-0.5 max-h-96 overflow-y-auto">
       {activities.length === 0 && (
         <div className="text-center py-8">
-          <div className="text-3xl mb-2">📭</div>
+          <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
+            <Activity className="w-6 h-6 text-slate-300" />
+          </div>
           <p className="text-sm text-slate-500">No recent activity</p>
+          <p className="text-xs text-slate-400 mt-1">Events will appear here as they occur</p>
         </div>
       )}
-      {activities.map((a) => (
-        <div key={a.id} className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-slate-50 transition-colors group">
-          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs shrink-0 ${typeColors[a.type] || 'bg-slate-100 text-slate-600'}`}>
-            {typeIcons[a.type] || '📋'}
+      {activities.map((a, idx) => (
+        <div key={a.id} className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group relative">
+          {/* Timeline connector */}
+          {idx < activities.length - 1 && (
+            <div className="absolute left-[22px] top-[40px] w-px h-[calc(100%-16px)] bg-slate-200 dark:bg-slate-700" />
+          )}
+          <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${typeColors[a.type] || 'bg-slate-100 text-slate-600'}`}>
+            {ACTIVITY_ICONS[a.type] || <Activity className="w-3.5 h-3.5" />}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-slate-800 group-hover:text-slate-900">{a.action}</p>
-            <p className="text-[11px] text-slate-500 truncate">{a.description}</p>
+            <div className="flex items-center gap-1.5">
+              <span className={`text-xs font-semibold ${actionColors[a.action] || 'text-slate-800 dark:text-slate-200'}`}>
+                {a.action}
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium uppercase">{a.type}</span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">{a.description}</p>
           </div>
-          <span className="text-[10px] text-slate-400 shrink-0 mt-0.5">
-            {new Date(a.timestamp).toLocaleString('en-UG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          <span className="text-[10px] text-slate-400 shrink-0 mt-1 tabular-nums">
+            {timeAgo(a.timestamp)}
           </span>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ── Project Pipeline Funnel ──
+function PipelineFunnel({ projectByStatus }: { projectByStatus: Record<string, number> }) {
+  const pipelineStages = [
+    { key: 'intake', label: 'Intake', color: '#6366f1' },
+    { key: 'field_survey', label: 'Field Survey', color: '#3b82f6' },
+    { key: 'data_processing', label: 'Data Processing', color: '#f59e0b' },
+    { key: 'completed', label: 'Completed', color: '#10b981' },
+  ]
+
+  const total = pipelineStages.reduce((sum, s) => sum + (projectByStatus[s.key] || 0), 0)
+
+  if (total === 0) {
+    return (
+      <div className="text-center py-8">
+        <BarChart3 className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+        <p className="text-xs text-slate-400">No projects in pipeline</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {pipelineStages.map((stage, idx) => {
+        const count = projectByStatus[stage.key] || 0
+        const pct = total > 0 ? Math.round((count / total) * 100) : 0
+        // Funnel width: wider at top, narrower at bottom
+        const widthPct = Math.max(30, 100 - idx * 18)
+
+        return (
+          <div key={stage.key} className="relative">
+            <div
+              className="mx-auto rounded-lg overflow-hidden transition-all duration-500"
+              style={{ width: `${widthPct}%` }}
+            >
+              <div
+                className="flex items-center justify-between px-4 py-2.5 text-white"
+                style={{ backgroundColor: stage.color }}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold">{count}</span>
+                  <span className="text-xs opacity-90">{fmt(stage.label)}</span>
+                </div>
+                <span className="text-xs font-medium opacity-80">{pct}%</span>
+              </div>
+            </div>
+            {idx < pipelineStages.length - 1 && count > 0 && (
+              <div className="flex justify-center mt-1">
+                <ChevronRight className="w-3 h-3 text-slate-300 rotate-90" />
+              </div>
+            )}
+          </div>
+        )
+      })}
+      <div className="flex items-center justify-between pt-2 border-t">
+        <span className="text-[11px] text-slate-500 font-medium">Total Pipeline</span>
+        <span className="text-sm font-bold">{total} projects</span>
+      </div>
     </div>
   )
 }
@@ -136,15 +240,7 @@ export function DashboardPage({ m, dashData, onNavigate, openDetail, clients, pr
     observations: [5, 8, 6, 9, 7, 11, m.observations || 0],
   }
 
-  // Revenue waterfall data
-  const waterfallData = [
-    { name: 'Invoiced', value: Number(fm.totalInvoiced || 0), fill: '#6366f1' },
-    { name: 'Paid', value: Number(fm.totalPaid || 0), fill: '#10b981' },
-    { name: 'Outstanding', value: Number(fm.totalOutstanding || 0), fill: '#f59e0b' },
-    { name: 'Overdue', value: Number(fm.overdueAmount || 0), fill: '#ef4444' },
-  ]
-
-  // Revenue trend (from invoices)
+  // Revenue trend area chart data (monthly, with MoM change)
   const revenueTrend = (financeData?.invoices || []).reduce((acc: any[], inv: any) => {
     const month = new Date(inv.created_at).toLocaleDateString('en-UG', { month: 'short', year: '2-digit' })
     const existing = acc.find(a => a.name === month)
@@ -157,7 +253,37 @@ export function DashboardPage({ m, dashData, onNavigate, openDetail, clients, pr
     return acc
   }, [])
 
+  // Add MoM percentage change
+  const revenueWithMoM = revenueTrend.map((item, idx) => {
+    const prev = idx > 0 ? revenueTrend[idx - 1].invoiced : 0
+    const momChange = prev > 0 ? ((item.invoiced - prev) / prev) * 100 : 0
+    return { ...item, momChange: Math.round(momChange * 10) / 10 }
+  })
+
+  // If no invoice data, generate placeholder monthly data
+  const revenueChartData = revenueWithMoM.length > 0 ? revenueWithMoM : [
+    { name: 'Jan', invoiced: 0, paid: 0, momChange: 0 },
+    { name: 'Feb', invoiced: 0, paid: 0, momChange: 0 },
+    { name: 'Mar', invoiced: 0, paid: 0, momChange: 0 },
+    { name: 'Apr', invoiced: 0, paid: 0, momChange: 0 },
+    { name: 'May', invoiced: 0, paid: 0, momChange: 0 },
+    { name: 'Jun', invoiced: 0, paid: 0, momChange: 0 },
+  ]
+
+  // Waterfall data
+  const waterfallData = [
+    { name: 'Invoiced', value: Number(fm.totalInvoiced || 0), fill: '#6366f1' },
+    { name: 'Paid', value: Number(fm.totalPaid || 0), fill: '#10b981' },
+    { name: 'Outstanding', value: Number(fm.totalOutstanding || 0), fill: '#f59e0b' },
+    { name: 'Overdue', value: Number(fm.overdueAmount || 0), fill: '#ef4444' },
+  ]
+
   const domainEvents = eventsData?.events || eventsData?.domainEvents || []
+
+  // Calculate current month vs last month revenue for the trend indicator
+  const currentMonthRevenue = revenueChartData.length > 0 ? revenueChartData[revenueChartData.length - 1].invoiced : 0
+  const lastMonthRevenue = revenueChartData.length > 1 ? revenueChartData[revenueChartData.length - 2].invoiced : 0
+  const revenueTrendPct = lastMonthRevenue > 0 ? Math.round(((currentMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100) : 0
 
   return (
     <div className="space-y-6">
@@ -233,20 +359,66 @@ export function DashboardPage({ m, dashData, onNavigate, openDetail, clients, pr
         ))}
       </div>
 
-      {/* Main Content Grid */}
+      {/* Revenue Area Chart - NEW */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-sm font-semibold">Revenue Trend</p>
+              <p className="text-xs text-slate-500 mt-0.5">Month-over-month invoicing & collections</p>
+            </div>
+            <div className="flex items-center gap-3">
+              {revenueTrendPct !== 0 && (
+                <div className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${revenueTrendPct >= 0 ? 'text-emerald-700 bg-emerald-50' : 'text-red-700 bg-red-50'}`}>
+                  {revenueTrendPct >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  {revenueTrendPct >= 0 ? '+' : ''}{revenueTrendPct}% MoM
+                </div>
+              )}
+              <Badge variant="outline" className="text-[10px]">UGX</Badge>
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={260}>
+            <AreaChart data={revenueChartData}>
+              <defs>
+                <linearGradient id="invoicedGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="paidGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+              <XAxis dataKey="name" fontSize={11} tickLine={false} axisLine={false} />
+              <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
+              <RechartsTooltip
+                formatter={(value: number, name: string) => [formatUGX(value), fmt(name)]}
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
+              />
+              <Legend fontSize={11} />
+              <Area type="monotone" dataKey="invoiced" stroke="#6366f1" strokeWidth={2} fill="url(#invoicedGrad)" name="Invoiced" />
+              <Area type="monotone" dataKey="paid" stroke="#10b981" strokeWidth={2} fill="url(#paidGrad)" name="Paid" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* Main Content Grid - Pipeline Funnel + Recent Projects */}
       <div className="grid lg:grid-cols-5 gap-6">
-        {/* Projects by Status Pie */}
+        {/* Project Pipeline Funnel - NEW */}
         <Card className="lg:col-span-2">
           <CardContent className="pt-6">
-            <p className="text-sm font-semibold mb-3">Projects by Status</p>
-            <ResponsiveContainer width="100%" height={240}>
-              <PieChart>
-                <Pie data={statusChartData} cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={3} dataKey="value">
-                  {statusChartData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                </Pie>
-                <RechartsTooltip /><Legend fontSize={11} />
-              </PieChart>
-            </ResponsiveContainer>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-sm font-semibold">Project Pipeline</p>
+                <p className="text-xs text-slate-500 mt-0.5">Survey lifecycle stages</p>
+              </div>
+              <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => onNavigate('projects')}>
+                View All <ChevronRight className="w-3 h-3 ml-0.5" />
+              </Button>
+            </div>
+            <PipelineFunnel projectByStatus={dashData?.projectByStatus || {}} />
           </CardContent>
         </Card>
 
@@ -314,11 +486,14 @@ export function DashboardPage({ m, dashData, onNavigate, openDetail, clients, pr
           </CardContent>
         </Card>
 
-        {/* Activity Feed */}
+        {/* Enhanced Activity Feed */}
         <Card className="lg:col-span-2">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-semibold">Activity Feed</p>
+              <div>
+                <p className="text-sm font-semibold">Activity Feed</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">{domainEvents.length} recent events</p>
+              </div>
               <Button variant="ghost" size="sm" className="text-xs h-6" onClick={() => onNavigate('audit')}>
                 View All
               </Button>

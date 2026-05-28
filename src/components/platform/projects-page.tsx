@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { ChevronRight, Plus, Search, SlidersHorizontal, MapPin, Inbox, Filter } from 'lucide-react'
+import { ChevronRight, Plus, Search, SlidersHorizontal, MapPin, Inbox, Filter, FileSpreadsheet } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { fmt, statusBadge, PRIORITY_BADGE, UGANDA_DISTRICTS } from './constants'
 import { SortableHeader } from './helpers'
@@ -48,6 +48,24 @@ export function ProjectsPage({ projects, clients, search, openDetail, selectedId
   const [visibleColumns, setVisibleColumns] = useState<VisibleColumns>({ ref: true, client: true, type: true, district: true, status: true, area: false, priority: true })
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [districtSuggestions, setDistrictSuggestions] = useState<string[]>([])
+
+  // CSV Export handler
+  const handleExport = () => {
+    const headers = ['Project Ref', 'Title', 'Type', 'Status', 'Priority', 'District', 'Area (ha)', 'Client', 'Due Date', 'Created']
+    const rows = filtered.map(p => [
+      p.project_ref, p.title, p.project_type, p.status, p.priority,
+      p.district || '', p.area_hectares || '',
+      p.client?.company_name || `${p.client?.first_name} ${p.client?.last_name}`,
+      p.due_date || '', p.created_at,
+    ])
+    const csv = [headers.join(','), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `projects-export-${new Date().toISOString().slice(0, 10)}.csv`; a.click()
+    URL.revokeObjectURL(url)
+    onToast?.('success', `Exported ${filtered.length} projects`)
+  }
 
   const handleSort = (field: string) => {
     if (sortField === field) { setSortDir(d => d === 'asc' ? 'desc' : 'asc') }
@@ -177,6 +195,11 @@ export function ProjectsPage({ projects, clients, search, openDetail, selectedId
           <Button size="sm" className="h-8 bg-emerald-600 hover:bg-emerald-700" onClick={() => setShowCreateDialog(true)}>
             <Plus className="w-3.5 h-3.5 mr-1" />New Project
           </Button>
+          {filtered.length > 0 && (
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleExport}>
+              <FileSpreadsheet className="w-3.5 h-3.5 mr-1" />Export
+            </Button>
+          )}
         </div>
       </div>
 

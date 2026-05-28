@@ -12,7 +12,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { MapPin, Search, Database, LayoutDashboard, Users, ShieldCheck, Receipt, GitBranch, Smartphone, Layers, Brain, ScrollText, MessageSquare, FileText, Building2, BarChart2, Moon, Sun, Command } from 'lucide-react'
+import { MapPin, Search, Database, LayoutDashboard, Users, ShieldCheck, Receipt, GitBranch, Smartphone, Layers, Brain, ScrollText, MessageSquare, FileText, Building2, BarChart2, Moon, Sun, Command, Settings } from 'lucide-react'
 import { toast } from 'sonner'
 
 // Platform components
@@ -32,6 +32,8 @@ import { ApprovalsPage } from '@/components/platform/approvals-page'
 import { AuditTrailPage } from '@/components/platform/audit-trail-page'
 import { OrganizationsPage } from '@/components/platform/organizations-page'
 import { ReportsPage } from '@/components/platform/reports-page'
+import { SettingsPage } from '@/components/platform/settings-page'
+import { NotificationCenter } from '@/components/platform/notification-center'
 import { CommandPalette } from '@/components/platform/command-palette'
 import {
   ClientDetail, ProjectDetail, WorkflowDetail, ObservationDetail, SyncDetail,
@@ -396,6 +398,7 @@ export default function GWSPlatform() {
     { id: 'documents', label: 'Document Vault', icon: FileText, group: 'Documents', badge: documentsData?.metrics?.total },
     { id: 'organizations', label: 'Organizations', icon: Building2, group: 'System' },
     { id: 'reports', label: 'Reports', icon: BarChart2, group: 'Intelligence' },
+    { id: 'settings', label: 'Settings', icon: Settings, group: 'System' },
   ]
 
   const grouped = NAV_ITEMS.reduce((acc, item) => {
@@ -415,6 +418,31 @@ export default function GWSPlatform() {
       </div>
     )
   }
+
+  // ── Skeleton loading for initial data fetch ──
+  const SkeletonDashboard = () => (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="h-8 w-24 bg-slate-200 rounded animate-pulse" />
+        <div className="h-8 w-28 bg-slate-200 rounded animate-pulse" />
+        <div className="h-8 w-24 bg-slate-200 rounded animate-pulse" />
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="h-28 bg-slate-100 rounded-lg animate-pulse" />
+        ))}
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="h-20 bg-slate-100 rounded-lg animate-pulse" />
+        ))}
+      </div>
+      <div className="grid lg:grid-cols-5 gap-6">
+        <div className="lg:col-span-2 h-72 bg-slate-100 rounded-lg animate-pulse" />
+        <div className="lg:col-span-3 h-72 bg-slate-100 rounded-lg animate-pulse" />
+      </div>
+    </div>
+  )
 
   const m = dashData?.metrics || {}
 
@@ -443,6 +471,7 @@ export default function GWSPlatform() {
       case 'audit': return <AuditTrailPage eventsData={eventsData} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} />
       case 'organizations': return <OrganizationsPage orgsData={orgsData} openDetail={openDetail} />
       case 'reports': return <ReportsPage reportsData={reportsData} openDetail={openDetail} dashData={dashData} />
+      case 'settings': return <SettingsPage darkMode={dark} toggleDarkMode={toggleDark} />
       default: return null
     }
   }
@@ -527,6 +556,8 @@ export default function GWSPlatform() {
                 <span className="text-xs">⌘</span>K
               </kbd>
             </Button>
+            {/* Notification Center */}
+            <NotificationCenter events={eventsData?.events || eventsData?.domainEvents || []} onNavigate={(p) => { setPage(p as PageId); setSearch(''); setSelectedIds(new Set()) }} />
             {/* Dark Mode Toggle */}
             <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={toggleDark} title={dark ? 'Switch to light mode' : 'Switch to dark mode'}>
               {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}

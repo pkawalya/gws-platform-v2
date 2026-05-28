@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Progress } from '@/components/ui/progress'
@@ -12,11 +12,116 @@ import {
 import {
   MapPin, CheckCircle2, Clock3, Receipt, DollarSign, FileText,
   MessageSquare, ShieldCheck, ScrollText, Cpu, GitBranch,
-  ChevronDown, Eye, Send, Trash2, MoreHorizontal,
+  ChevronDown, Eye, Send, Trash2, MoreHorizontal, TrendingUp, TrendingDown,
+  CalendarDays, ArrowRight, AlertCircle,
 } from 'lucide-react'
-import { fmt, statusBadge, PRIORITY_BADGE } from './constants'
+import { fmt, statusBadge, PRIORITY_BADGE, formatUGX } from './constants'
 import { DetailField } from './helpers'
 import type { ClientRecord, ProjectRecord } from './types'
+
+// ── Mini Map for Client Location ──
+function ClientMiniMap({ latitude, longitude, name }: { latitude: string; longitude: string; name: string }) {
+  const mapRef = useRef<HTMLDivElement>(null)
+  const mapInstanceRef = useRef<any>(null)
+
+  useEffect(() => {
+    if (!mapRef.current || mapInstanceRef.current) return
+    const lat = Number(latitude)
+    const lng = Number(longitude)
+    if (isNaN(lat) || isNaN(lng)) return
+
+    import('leaflet').then((L) => {
+      delete (L.Icon.Default.prototype as any)._getIconUrl
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+      })
+
+      const map = L.map(mapRef.current!, {
+        center: [lat, lng],
+        zoom: 13,
+        zoomControl: false,
+        attributionControl: false,
+        dragging: false,
+        scrollWheelZoom: false,
+        doubleClickZoom: false,
+        touchZoom: false,
+      })
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map)
+
+      const icon = L.divIcon({
+        html: `<div style="background:#10b981;width:24px;height:24px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;"><span style="color:white;font-size:10px;font-weight:bold;">C</span></div>`,
+        className: '',
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      })
+
+      L.marker([lat, lng], { icon }).addTo(map).bindPopup(`<strong>${name}</strong><br/>${lat.toFixed(4)}, ${lng.toFixed(4)}`)
+      mapInstanceRef.current = map
+      setTimeout(() => map.invalidateSize(), 100)
+    })
+
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove()
+        mapInstanceRef.current = null
+      }
+    }
+  }, [latitude, longitude, name])
+
+  return (
+    <div className="relative rounded-lg overflow-hidden border">
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+      <div ref={mapRef} style={{ height: '140px', width: '100%' }} />
+      <div className="absolute bottom-1 left-1 bg-white/90 backdrop-blur-sm px-1.5 py-0.5 rounded text-[9px] text-slate-500 font-mono">
+        {Number(latitude).toFixed(4)}, {Number(longitude).toFixed(4)}
+      </div>
+    </div>
+  )
+}
+
+// ── Projects Timeline ──
+function ProjectsTimeline({ projects }: { projects: Array<{ id: number; project_ref: string; title: string; status: string }> }) {
+  if (projects.length === 0) {
+    return (
+      <div className="text-center py-4">
+        <MapPin className="w-6 h-6 text-slate-300 mx-auto mb-1" />
+        <p className="text-xs text-slate-400">No projects yet</p>
+      </div>
+    )
+  }
+
+  const statusDot: Record<string, string> = {
+    intake: 'bg-indigo-500', field_survey: 'bg-blue-500',
+    data_processing: 'bg-amber-500', completed: 'bg-emerald-500',
+    pending: 'bg-slate-400', active: 'bg-emerald-500',
+  }
+
+  return (
+    <div className="space-y-0">
+      {projects.map((p, idx) => (
+        <div key={p.id} className="flex items-start gap-3 relative">
+          {/* Timeline line */}
+          {idx < projects.length - 1 && (
+            <div className="absolute left-[9px] top-[22px] w-px h-[calc(100%-8px)] bg-slate-200" />
+          )}
+          <div className={`w-5 h-5 rounded-full shrink-0 flex items-center justify-center ${statusDot[p.status] || 'bg-slate-400'}`}>
+            <div className="w-2 h-2 rounded-full bg-white" />
+          </div>
+          <div className="flex-1 pb-3">
+            <p className="text-xs font-medium text-slate-800">{p.title}</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-[10px] text-slate-400 font-mono">{p.project_ref}</span>
+              {statusBadge(p.status)}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 // ── Action helper to call PATCH APIs ──
 async function patchRecord(endpoint: string, data: Record<string, unknown>) {
@@ -125,15 +230,91 @@ export function ClientDetail({ data, onRefresh }: { data: ClientRecord; onRefres
             <DetailField label="Branch" value={data.branch?.name} />
             <DetailField label="Phone" value={data.phone} />
             <DetailField label="Email" value={data.email} />
-            {data.latitude && <DetailField label="Coordinates" value={<span className="font-mono text-xs">{Number(data.latitude).toFixed(4)}, {Number(data.longitude).toFixed(4)}</span>} />}
           </div>
+
+          {/* Mini Map of Client Location */}
+          {data.latitude && data.longitude && (
+            <>
+              <Separator />
+              <div>
+                <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                  <MapPin className="w-3 h-3" /> Location
+                </h4>
+                <ClientMiniMap latitude={data.latitude} longitude={data.longitude} name={clientName} />
+              </div>
+            </>
+          )}
+
           <Separator />
+
+          {/* Financial Summary Bar */}
+          <div>
+            <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+              <DollarSign className="w-3 h-3" /> Financial Summary
+            </h4>
+            {(() => {
+              const totalInvoiced = data.invoices.reduce((s, i) => s + Number(i.total_amount), 0)
+              const totalPaid = data.invoices.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.total_amount), 0)
+              const totalOutstanding = totalInvoiced - totalPaid
+              const collectionRate = totalInvoiced > 0 ? Math.round((totalPaid / totalInvoiced) * 100) : 0
+              const overdueCount = data.invoices.filter(i => i.status === 'overdue' || i.status === 'pending').length
+
+              return (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="p-2.5 rounded-lg bg-emerald-50 text-center">
+                      <p className="text-[9px] text-emerald-600 uppercase tracking-wide font-medium">Invoiced</p>
+                      <p className="text-xs font-bold text-emerald-700 mt-0.5">{formatUGX(totalInvoiced)}</p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-blue-50 text-center">
+                      <p className="text-[9px] text-blue-600 uppercase tracking-wide font-medium">Collected</p>
+                      <p className="text-xs font-bold text-blue-700 mt-0.5">{formatUGX(totalPaid)}</p>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-amber-50 text-center">
+                      <p className="text-[9px] text-amber-600 uppercase tracking-wide font-medium">Outstanding</p>
+                      <p className="text-xs font-bold text-amber-700 mt-0.5">{formatUGX(totalOutstanding)}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-slate-500">Collection Rate</span>
+                      <span className={`font-semibold ${collectionRate >= 80 ? 'text-emerald-600' : collectionRate >= 50 ? 'text-amber-600' : 'text-red-600'}`}>{collectionRate}%</span>
+                    </div>
+                    <Progress value={collectionRate} className="h-1.5" />
+                  </div>
+                  {overdueCount > 0 && (
+                    <div className="flex items-center gap-1.5 text-[10px] text-red-600 bg-red-50 rounded-lg px-2.5 py-1.5">
+                      <AlertCircle className="w-3 h-3" />
+                      <span>{overdueCount} invoice{overdueCount > 1 ? 's' : ''} pending/overdue</span>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+          </div>
+
+          <Separator />
+
+          {/* Stats Row */}
           <div className="grid grid-cols-2 gap-3">
             <div className="p-3 rounded-lg bg-blue-50 text-center"><p className="text-lg font-bold text-blue-600">{data._count.surveyProjects}</p><p className="text-[10px] text-blue-500">Projects</p></div>
             <div className="p-3 rounded-lg bg-emerald-50 text-center"><p className="text-lg font-bold text-emerald-600">{data.invoices.length}</p><p className="text-[10px] text-emerald-500">Invoices</p></div>
             <div className="p-3 rounded-lg bg-amber-50 text-center"><p className="text-lg font-bold text-amber-600">{data._count.documents}</p><p className="text-[10px] text-amber-500">Documents</p></div>
             <div className="p-3 rounded-lg bg-violet-50 text-center"><p className="text-lg font-bold text-violet-600">{data._count.communications}</p><p className="text-[10px] text-violet-500">Messages</p></div>
           </div>
+
+          {/* Projects Timeline */}
+          {data.surveyProjects.length > 0 && (
+            <>
+              <Separator />
+              <div>
+                <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                  <GitBranch className="w-3 h-3" /> Projects Timeline
+                </h4>
+                <ProjectsTimeline projects={data.surveyProjects} />
+              </div>
+            </>
+          )}
         </>
       )}
 

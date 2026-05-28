@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { MapPin, DollarSign, Users, Cpu, GitBranch, Crosshair, ScrollText, Receipt, FileSpreadsheet, CalendarDays, Printer, BarChart2 } from 'lucide-react'
+import { MapPin, DollarSign, Users, Cpu, GitBranch, Crosshair, ScrollText, Receipt, FileSpreadsheet, CalendarDays, Printer, BarChart2, Download, FileText } from 'lucide-react'
 import { fmt, statusBadge, STATUS_COLORS, PRIORITY_BADGE } from './constants'
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -55,6 +55,98 @@ export function ReportsPage({ reportsData, openDetail, dashData }: ReportsPagePr
 
   const generatedAt = reportsData?.generatedAt ? new Date(reportsData.generatedAt).toLocaleString() : '—'
 
+  // Generate comprehensive downloadable report
+  const generateFullReport = () => {
+    const sections: string[] = []
+    sections.push('GWS PLATFORM V2 - COMPREHENSIVE REPORT')
+    sections.push('=========================================')
+    sections.push(`Generated: ${new Date().toLocaleString()}`)
+    sections.push(`Date Range: ${dateFrom || 'All'} to ${dateTo || 'All'}`)
+    sections.push('')
+
+    // Project section
+    sections.push('PROJECT SUMMARY')
+    sections.push('---------------')
+    sections.push(`Total Projects: ${pr.total || 0}`)
+    sections.push(`Overdue: ${pr.overdue || 0}`)
+    sections.push(`Total Area: ${pr.totalAreaHectares || 0} hectares`)
+    sections.push(`Districts Covered: ${(pr.byDistrict || []).length}`)
+    sections.push('')
+    if (pr.byStatus && pr.byStatus.length > 0) {
+      sections.push('Projects by Status:')
+      pr.byStatus.forEach((s: any) => sections.push(`  ${fmt(s.status)}: ${s.count}`))
+      sections.push('')
+    }
+    if (pr.byType && pr.byType.length > 0) {
+      sections.push('Projects by Type:')
+      pr.byType.forEach((t: any) => sections.push(`  ${fmt(t.type)}: ${t.count}`))
+      sections.push('')
+    }
+
+    // Financial section
+    sections.push('FINANCIAL SUMMARY')
+    sections.push('-----------------')
+    sections.push(`Total Invoiced: UGX ${Number(fr.totalInvoiced || 0).toLocaleString()}`)
+    sections.push(`Total Paid: UGX ${Number(fr.totalPaid || 0).toLocaleString()}`)
+    sections.push(`Outstanding: UGX ${Number(fr.totalOutstanding || 0).toLocaleString()}`)
+    sections.push(`Collection Rate: ${fr.collectionRate || 0}%`)
+    sections.push(`Overdue Amount: UGX ${Number(fr.overdueAmount || 0).toLocaleString()}`)
+    sections.push('')
+
+    // Client section
+    sections.push('CLIENT SUMMARY')
+    sections.push('--------------')
+    sections.push(`Total Clients: ${cr.total || 0}`)
+    if (cr.byStatus && cr.byStatus.length > 0) {
+      sections.push('Clients by Status:')
+      cr.byStatus.forEach((s: any) => sections.push(`  ${fmt(s.status)}: ${s.count}`))
+      sections.push('')
+    }
+
+    // Workflow section
+    sections.push('WORKFLOW SUMMARY')
+    sections.push('----------------')
+    sections.push(`Definitions: ${wr.definitionCount || 0}`)
+    sections.push(`Total Instances: ${wr.instanceCount || 0}`)
+    sections.push(`Active: ${wr.activeCount || 0}`)
+    sections.push(`Completed: ${wr.completedCount || 0}`)
+    sections.push('')
+
+    // Spatial section
+    sections.push('SPATIAL & FIELD SUMMARY')
+    sections.push('----------------------')
+    sections.push(`Observations: ${sr.observationCount || 0}`)
+    sections.push(`Sync Events: ${sr.syncEventCount || 0}`)
+    sections.push(`Total Conflicts: ${sr.totalConflicts || 0}`)
+    sections.push('')
+
+    // AI section
+    sections.push('AI USAGE SUMMARY')
+    sections.push('----------------')
+    sections.push(`Total Calls: ${ar.totalCalls || 0}`)
+    sections.push(`Success Rate: ${ar.successRate || 0}%`)
+    sections.push(`Total Cost: $${Number(ar.totalCost || 0).toFixed(2)}`)
+    sections.push('')
+
+    // Audit section
+    sections.push('AUDIT TRAIL SUMMARY')
+    sections.push('-------------------')
+    sections.push(`Total Events: ${aur.totalEvents || 0}`)
+    sections.push('')
+
+    sections.push('=========================================')
+    sections.push('End of Report — GWS Platform V2')
+
+    const text = sections.join('\n')
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `gws-platform-report-${new Date().toISOString().slice(0, 10)}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const REPORT_TABS = [
     { id: 'overview' as const, label: 'Overview', icon: BarChart2 },
     { id: 'projects' as const, label: 'Projects', icon: MapPin },
@@ -96,6 +188,9 @@ export function ReportsPage({ reportsData, openDetail, dashData }: ReportsPagePr
           </div>
           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => window.print()}>
             <Printer className="w-3.5 h-3.5 mr-1" />Print
+          </Button>
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => generateFullReport()}>
+            <Download className="w-3.5 h-3.5 mr-1" />Download Report
           </Button>
         </div>
       </div>
