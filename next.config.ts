@@ -3,11 +3,13 @@ import path from "path";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  /* config options here */
   typescript: {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
+  experimental: {
+    cpus: 1,
+  },
   turbopack: {
     root: path.resolve(__dirname),
   },

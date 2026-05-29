@@ -16,7 +16,7 @@ function getPool() {
       user: '74fac8522f9f4853ff359b7132f6c62288f1b6c30b6662a06224e4708215bfb5',
       password: 'sk_vjZOzfwwXnFepaWbCeriL',
       ssl: { rejectUnauthorized: false },
-      max: 5,
+      max: 1,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
     })
