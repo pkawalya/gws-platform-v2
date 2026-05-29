@@ -8,6 +8,7 @@ import json
 import os
 import sys
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -275,6 +276,7 @@ class GWSHandler(BaseHTTPRequestHandler):
                 self.send_header("Cache-Control", "public, max-age=86400")
             else:
                 self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "close")
             self.end_headers()
             self.wfile.write(data)
         except Exception as e:
@@ -287,11 +289,16 @@ class GWSHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(body)
 
+class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
 if __name__ == "__main__":
-    server = HTTPServer(("0.0.0.0", PORT), GWSHandler)
+    server = ThreadedHTTPServer(("0.0.0.0", PORT), GWSHandler)
     print(f"GWS Platform V2 running on http://0.0.0.0:{PORT}")
     sys.stdout.flush()
     try:
