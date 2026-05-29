@@ -512,7 +512,7 @@ export default function GWSPlatform() {
                   {g.items.map((item) => (
                     <SidebarMenuItem key={item.id + item.label}>
                       <SidebarMenuButton
-                        isActive={page === item.id && !detailPanel.open}
+                        isActive={page === item.id || (detailPanel.open && ((detailPanel.type === 'client' && item.id === 'clients') || (detailPanel.type === 'project' && item.id === 'projects') || (detailPanel.type === 'invoice' && item.id === 'finance') || (detailPanel.type === 'approval' && item.id === 'approvals') || (detailPanel.type === 'document' && item.id === 'documents') || (detailPanel.type === 'communication' && item.id === 'communications') || (detailPanel.type === 'event' && item.id === 'audit') || (detailPanel.type === 'organization' && item.id === 'organizations')))}
                         onClick={() => { setPage(item.id); setSearch(''); setSelectedIds(new Set()); closeDetail() }}
                         tooltip={item.label}
                       >
@@ -547,7 +547,15 @@ export default function GWSPlatform() {
           <Separator orientation="vertical" className="h-5" />
           <div className="flex-1 flex items-center gap-2">
             <h1 className="text-sm font-semibold">
-              {detailPanel.open ? 'Details' : (NAV_ITEMS.find(n => n.id === page)?.label || 'Dashboard')}
+              {detailPanel.open ? (() => {
+                const typeLabels: Record<string, string> = {
+                  client: 'Client Details', project: 'Project Details', workflow: 'Workflow', observation: 'Observation',
+                  sync: 'Sync Event', 'ai-model': 'AI Model', invoice: 'Invoice', quotation: 'Quotation',
+                  document: 'Document', communication: 'Message', approval: 'Approval',
+                  event: 'Event', report: 'Report', organization: 'Organization', layer: 'Layer',
+                }
+                return typeLabels[detailPanel.type] || 'Details'
+              })() : (NAV_ITEMS.find(n => n.id === page)?.label || 'Dashboard')}
             </h1>
           </div>
           <div className="flex items-center gap-2">

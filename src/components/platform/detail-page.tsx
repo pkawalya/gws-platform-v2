@@ -5,23 +5,30 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Progress } from '@/components/ui/progress'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   MapPin, CheckCircle2, Clock3, Receipt, DollarSign, FileText,
   MessageSquare, ShieldCheck, ScrollText, Cpu, GitBranch,
   ChevronDown, Eye, Send, Trash2, MoreHorizontal, TrendingUp, TrendingDown,
   CalendarDays, ArrowRight, AlertCircle, ArrowLeft, Users, Activity,
-  Smartphone, Layers, Brain, BarChart2, Building2, X,
+  Smartphone, Layers, Brain, BarChart2, Building2, X, Phone, Mail,
+  Pencil, Save, Globe, Home, MapPinned, Building, StickyNote,
+  CreditCard, Clock, User, ExternalLink, Copy,
 } from 'lucide-react'
 import { fmt, statusBadge, PRIORITY_BADGE, formatUGX, STATUS_BADGE } from './constants'
 import { DetailField } from './helpers'
 import type { ClientRecord, ProjectRecord, PageId } from './types'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table'
 
-// ── Interactive Map for Detail Pages (larger than mini-map) ──
+// ── Interactive Map for Detail Pages ──
 function DetailMap({ latitude, longitude, name, type = 'client' }: { latitude: string; longitude: string; name: string; type?: string }) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
@@ -85,39 +92,6 @@ function DetailMap({ latitude, longitude, name, type = 'client' }: { latitude: s
   )
 }
 
-// ── Projects Timeline ──
-function ProjectsTimeline({ projects }: { projects: Array<{ id: number; project_ref: string; title: string; status: string }> }) {
-  if (projects.length === 0) return <p className="text-sm text-slate-400 py-4 text-center">No projects yet</p>
-
-  const statusDot: Record<string, string> = {
-    intake: 'bg-indigo-500', field_survey: 'bg-blue-500',
-    data_processing: 'bg-amber-500', completed: 'bg-emerald-500',
-    pending: 'bg-slate-400', active: 'bg-emerald-500',
-  }
-
-  return (
-    <div className="space-y-0">
-      {projects.map((p, idx) => (
-        <div key={p.id} className="flex items-start gap-4 relative">
-          {idx < projects.length - 1 && (
-            <div className="absolute left-[11px] top-[26px] w-0.5 h-[calc(100%-12px)] bg-slate-200" />
-          )}
-          <div className={`w-6 h-6 rounded-full shrink-0 flex items-center justify-center ${statusDot[p.status] || 'bg-slate-400'}`}>
-            <div className="w-2 h-2 rounded-full bg-white" />
-          </div>
-          <div className="flex-1 pb-4">
-            <p className="text-sm font-medium text-slate-800">{p.title}</p>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-xs text-slate-400 font-mono">{p.project_ref}</span>
-              {statusBadge(p.status)}
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 // ── Action helpers ──
 async function patchRecord(endpoint: string, data: Record<string, unknown>) {
   const res = await fetch(endpoint, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
@@ -157,6 +131,104 @@ function DetailBreadcrumb({ type, label, onBack }: { type: string; label: string
       <span className="text-sm text-slate-500">{typeLabels[type] || type}</span>
       <Separator orientation="vertical" className="h-4" />
       <span className="text-sm font-medium text-slate-800 truncate max-w-md">{label}</span>
+    </div>
+  )
+}
+
+// ── Editable Field ──
+function EditableField({ label, value, onSave, type = 'text', icon: Icon, placeholder = '—' }: {
+  label: string; value: string | null | undefined; onSave: (val: string) => void; type?: string; icon?: any; placeholder?: string
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value || '')
+
+  useEffect(() => { setDraft(value || '') }, [value])
+
+  if (editing) {
+    return (
+      <div className="space-y-1">
+        <p className="text-[11px] text-slate-500 uppercase tracking-wide">{label}</p>
+        <div className="flex items-center gap-1">
+          {type === 'textarea' ? (
+            <Textarea className="text-sm h-16" value={draft} onChange={e => setDraft(e.target.value)} />
+          ) : (
+            <Input className="h-8 text-sm" type={type} value={draft} onChange={e => setDraft(e.target.value)} />
+          )}
+          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700" onClick={() => { onSave(draft); setEditing(false) }}>
+            <Save className="w-3.5 h-3.5" />
+          </Button>
+          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-slate-400" onClick={() => { setDraft(value || ''); setEditing(false) }}>
+            <X className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="group relative">
+      <p className="text-[11px] text-slate-500 uppercase tracking-wide flex items-center gap-1">
+        {Icon && <Icon className="w-3 h-3" />} {label}
+      </p>
+      <div className="flex items-center gap-1 mt-0.5">
+        <p className="text-sm">{value || placeholder}</p>
+        <button className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-slate-400 hover:text-emerald-600" onClick={() => setEditing(true)}>
+          <Pencil className="w-3 h-3" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Activity Timeline ──
+function ActivityTimeline({ clientName, projects, invoices }: { clientName: string; projects: any[]; invoices: any[] }) {
+  // Build activity items from available data
+  const activities: Array<{ id: string; type: string; description: string; date: string; icon: any; color: string }> = []
+
+  projects.forEach(p => {
+    activities.push({
+      id: `proj-${p.id}`, type: 'project', description: `Project "${p.title}" — ${fmt(p.status)}`,
+      date: p.created_at || new Date().toISOString(),
+      icon: MapPin, color: p.status === 'completed' ? 'text-emerald-600 bg-emerald-50' : p.status === 'field_survey' ? 'text-blue-600 bg-blue-50' : 'text-amber-600 bg-amber-50'
+    })
+  })
+
+  invoices.forEach(i => {
+    activities.push({
+      id: `inv-${i.id}`, type: 'invoice', description: `Invoice ${i.invoice_number} — UGX ${Number(i.total_amount).toLocaleString()}`,
+      date: i.created_at || i.issued_at || new Date().toISOString(),
+      icon: Receipt, color: i.status === 'paid' ? 'text-emerald-600 bg-emerald-50' : i.status === 'overdue' ? 'text-red-600 bg-red-50' : 'text-blue-600 bg-blue-50'
+    })
+  })
+
+  // Sort by date desc
+  activities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+  if (activities.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+        <p className="text-sm text-slate-400">No activity recorded yet</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-0">
+      {activities.slice(0, 10).map((a, idx) => (
+        <div key={a.id} className="flex items-start gap-3 relative pb-4">
+          {idx < Math.min(activities.length, 10) - 1 && (
+            <div className="absolute left-[15px] top-[34px] w-px h-[calc(100%-14px)] bg-slate-200" />
+          )}
+          <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center ${a.color}`}>
+            <a.icon className="w-4 h-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-slate-700">{a.description}</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">{new Date(a.date).toLocaleDateString()} {new Date(a.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -221,12 +293,12 @@ export function DetailPage({ type, data, onBack, onRefresh, onNavigate, openDeta
 }
 
 // ══════════════════════════════════════════════════════════════
-// CLIENT DETAIL PAGE — Full Page Layout
+// CLIENT DETAIL PAGE — Comprehensive Full Page Layout
 // ══════════════════════════════════════════════════════════════
 
 function ClientDetailPage({ data, onRefresh, openDetail, onNavigate }: { data: ClientRecord; onRefresh: () => void; openDetail?: (type: string, data: any) => void; onNavigate?: (page: PageId) => void }) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'projects' | 'finance' | 'documents' | 'communications' | 'approvals'>('overview')
   const [actionLoading, setActionLoading] = useState(false)
+  const [copiedRef, setCopiedRef] = useState(false)
   const clientName = data.client_type === 'company' ? data.company_name : `${data.first_name} ${data.last_name}`
 
   const handleStatusChange = async (newStatus: string) => {
@@ -236,10 +308,21 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate }: { data: C
   }
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this client?')) return
+    if (!confirm('Are you sure you want to delete this client? This action cannot be undone.')) return
     setActionLoading(true)
     try { await deleteRecord(`/api/clients/${data.id}`); onRefresh() }
     catch (e) { console.error(e) } finally { setActionLoading(false) }
+  }
+
+  const handleFieldSave = async (field: string, value: string) => {
+    try { await patchRecord(`/api/clients/${data.id}`, { [field]: value }); onRefresh() }
+    catch (e) { console.error(e) }
+  }
+
+  const copyRef = () => {
+    navigator.clipboard.writeText(data.client_ref)
+    setCopiedRef(true)
+    setTimeout(() => setCopiedRef(false), 2000)
   }
 
   const totalInvoiced = data.invoices.reduce((s, i) => s + Number(i.total_amount), 0)
@@ -247,59 +330,65 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate }: { data: C
   const totalOutstanding = totalInvoiced - totalPaid
   const collectionRate = totalInvoiced > 0 ? Math.round((totalPaid / totalInvoiced) * 100) : 0
   const overdueCount = data.invoices.filter(i => i.status === 'overdue' || i.status === 'pending').length
-
-  const TABS = [
-    { id: 'overview' as const, label: 'Overview' },
-    { id: 'projects' as const, label: `Projects (${data.surveyProjects.length})` },
-    { id: 'finance' as const, label: `Finance (${data.invoices.length})` },
-    { id: 'documents' as const, label: `Documents (${data._count.documents})` },
-    { id: 'communications' as const, label: `Messages (${data._count.communications})` },
-    { id: 'approvals' as const, label: 'Approvals' },
-  ]
+  const activeProjects = data.surveyProjects.filter(p => p.status !== 'completed').length
 
   return (
     <div>
-      {/* Hero Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-2xl font-bold text-white shadow-lg">
-            {data.client_type === 'company' ? (data.company_name?.[0] || 'C') : `${data.first_name?.[0] || ''}${data.last_name?.[0] || ''}`}
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">{clientName}</h2>
-            <div className="flex items-center gap-2 mt-1">
-              {statusBadge(data.status)}
-              <Badge variant="outline" className="text-xs">{data.client_type === 'company' ? 'Company' : 'Individual'}</Badge>
-              <span className="text-xs text-slate-400 font-mono">{data.client_ref}</span>
+      {/* ── Hero Header with Cover ── */}
+      <div className="relative mb-6">
+        <div className="h-32 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 rounded-xl" />
+        <div className="absolute bottom-0 left-0 right-0 px-6 translate-y-1/2">
+          <div className="flex items-end justify-between">
+            <div className="flex items-end gap-4">
+              <div className="w-20 h-20 rounded-2xl bg-white shadow-lg flex items-center justify-center text-3xl font-bold text-emerald-700 border-4 border-white">
+                {data.client_type === 'company' ? (data.company_name?.[0] || 'C') : `${data.first_name?.[0] || ''}${data.last_name?.[0] || ''}`}
+              </div>
+              <div className="pb-1">
+                <h2 className="text-2xl font-bold text-slate-900">{clientName}</h2>
+                <div className="flex items-center gap-2 mt-1">
+                  {statusBadge(data.status)}
+                  <Badge variant="outline" className="text-xs bg-white">{data.client_type === 'company' ? 'Company' : 'Individual'}</Badge>
+                  <button className="flex items-center gap-1 text-xs text-slate-500 hover:text-emerald-600 font-mono bg-white px-1.5 py-0.5 rounded" onClick={copyRef}>
+                    {data.client_ref} <Copy className="w-3 h-3" />
+                  </button>
+                  {copiedRef && <span className="text-[10px] text-emerald-600">Copied!</span>}
+                </div>
+              </div>
+            </div>
+            <div className="pb-1 flex items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="h-9 bg-white" disabled={actionLoading}>
+                    Actions <ChevronDown className="w-4 h-4 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleStatusChange('active')}>Set Active</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleStatusChange('prospect')}>Set Prospect</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleStatusChange('pending')}>Set Pending</DropdownMenuItem>
+                  <DropdownMenuItem className="text-red-600" onClick={handleDelete}>
+                    <Trash2 className="w-4 h-4 mr-2" /> Delete Client
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="h-9" disabled={actionLoading}>
-              Actions <ChevronDown className="w-4 h-4 ml-1" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleStatusChange('active')}>Set Active</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleStatusChange('prospect')}>Set Prospect</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleStatusChange('pending')}>Set Pending</DropdownMenuItem>
-            <DropdownMenuItem className="text-red-600" onClick={handleDelete}>
-              <Trash2 className="w-4 h-4 mr-2" /> Delete Client
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
 
-      {/* Quick Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      {/* Spacer for the overlapping header */}
+      <div className="h-10" />
+
+      {/* ── Quick Stats Row ── */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         {[
-          { label: 'Projects', value: data._count.surveyProjects, icon: MapPin, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Active Projects', value: activeProjects, icon: MapPin, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Total Projects', value: data._count.surveyProjects, icon: GitBranch, color: 'text-indigo-600', bg: 'bg-indigo-50' },
           { label: 'Invoices', value: data.invoices.length, icon: Receipt, color: 'text-emerald-600', bg: 'bg-emerald-50' },
           { label: 'Documents', value: data._count.documents, icon: FileText, color: 'text-amber-600', bg: 'bg-amber-50' },
           { label: 'Messages', value: data._count.communications, icon: MessageSquare, color: 'text-violet-600', bg: 'bg-violet-50' },
         ].map(s => (
-          <Card key={s.label} className="hover:shadow-md transition-shadow">
+          <Card key={s.label} className="hover:shadow-md transition-shadow cursor-pointer">
             <CardContent className="p-4 flex items-center gap-3">
               <div className={`w-10 h-10 rounded-lg ${s.bg} flex items-center justify-center`}>
                 <s.icon className={`w-5 h-5 ${s.color}`} />
@@ -313,253 +402,379 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate }: { data: C
         ))}
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-center gap-1 border-b mb-6">
-        {TABS.map(tab => (
-          <Button
-            key={tab.id}
-            variant="ghost"
-            size="sm"
-            className={`h-9 text-sm rounded-b-none ${activeTab === tab.id ? 'border-b-2 border-emerald-600 text-emerald-700 font-semibold' : 'text-slate-500'}`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </Button>
-        ))}
-      </div>
+      {/* ── Main Content with Tabs ── */}
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="w-full justify-start border-b rounded-none bg-transparent h-auto p-0 gap-0">
+          {[
+            { value: 'overview', label: 'Overview' },
+            { value: 'projects', label: `Projects (${data.surveyProjects.length})` },
+            { value: 'finance', label: `Finance (${data.invoices.length})` },
+            { value: 'documents', label: `Documents (${data._count.documents})` },
+            { value: 'communications', label: `Messages (${data._count.communications})` },
+            { value: 'approvals', label: 'Approvals' },
+            { value: 'activity', label: 'Activity' },
+          ].map(tab => (
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm data-[state=active]:text-emerald-700 data-[state=active]:font-semibold text-slate-500"
+            >
+              {tab.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-      {/* Tab Content */}
-      {activeTab === 'overview' && (
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Left Column: Details + Financial */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Contact Info Card */}
-            <Card>
-              <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Contact Information</CardTitle></CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <DetailField label="Client Ref" value={<span className="font-mono">{data.client_ref}</span>} />
-                  <DetailField label="Type" value={<span className="capitalize">{data.client_type}</span>} />
-                  <DetailField label="District" value={data.district || '—'} />
-                  <DetailField label="Organization" value={data.organization?.name || '—'} />
-                  <DetailField label="Branch" value={data.branch?.name || '—'} />
-                  <DetailField label="Phone" value={data.phone || '—'} />
-                  <DetailField label="Email" value={data.email || '—'} />
-                  <DetailField label="NIN" value={data.nin || '—'} />
-                  <DetailField label="Address" value={data.address || '—'} />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Financial Summary Card */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <DollarSign className="w-4 h-4 text-emerald-600" /> Financial Summary
-                  </CardTitle>
-                  <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => onNavigate?.('finance')}>
-                    View in Finance <ArrowRight className="w-3 h-3 ml-1" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="p-4 rounded-xl bg-emerald-50 text-center">
-                      <p className="text-xs text-emerald-600 uppercase tracking-wide font-medium">Invoiced</p>
-                      <p className="text-lg font-bold text-emerald-700 mt-1">{formatUGX(totalInvoiced)}</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-blue-50 text-center">
-                      <p className="text-xs text-blue-600 uppercase tracking-wide font-medium">Collected</p>
-                      <p className="text-lg font-bold text-blue-700 mt-1">{formatUGX(totalPaid)}</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-amber-50 text-center">
-                      <p className="text-xs text-amber-600 uppercase tracking-wide font-medium">Outstanding</p>
-                      <p className="text-lg font-bold text-amber-700 mt-1">{formatUGX(totalOutstanding)}</p>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-slate-500">Collection Rate</span>
-                      <span className={`font-semibold ${collectionRate >= 80 ? 'text-emerald-600' : collectionRate >= 50 ? 'text-amber-600' : 'text-red-600'}`}>{collectionRate}%</span>
-                    </div>
-                    <Progress value={collectionRate} className="h-2" />
-                  </div>
-                  {overdueCount > 0 && (
-                    <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3">
-                      <AlertCircle className="w-4 h-4" />
-                      <span className="font-medium">{overdueCount} invoice{overdueCount > 1 ? 's' : ''} pending/overdue</span>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Projects Timeline Card */}
-            {data.surveyProjects.length > 0 && (
+        {/* ── Overview Tab ── */}
+        <TabsContent value="overview" className="mt-6">
+          <div className="grid lg:grid-cols-3 gap-6">
+            {/* Left Column */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Contact Information Card */}
               <Card>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <GitBranch className="w-4 h-4 text-blue-600" /> Projects Timeline
+                      <User className="w-4 h-4 text-emerald-600" /> Contact Information
                     </CardTitle>
-                    <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setActiveTab('projects')}>
-                      View All <ArrowRight className="w-3 h-3 ml-1" />
+                    <Badge variant="outline" className="text-[10px]">{data.client_ref}</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
+                    <EditableField label="First Name" value={data.first_name} icon={User} onSave={v => handleFieldSave('first_name', v)} />
+                    <EditableField label="Last Name" value={data.last_name} icon={User} onSave={v => handleFieldSave('last_name', v)} />
+                    <EditableField label="Company" value={data.company_name} icon={Building} onSave={v => handleFieldSave('company_name', v)} />
+                    <EditableField label="Email" value={data.email} icon={Mail} onSave={v => handleFieldSave('email', v)} />
+                    <EditableField label="Phone" value={data.phone} icon={Phone} onSave={v => handleFieldSave('phone', v)} />
+                    <DetailField label="Client Type" value={<Badge variant="outline" className="text-xs">{data.client_type === 'company' ? 'Company' : 'Individual'}</Badge>} />
+                    <EditableField label="District" value={data.district} icon={MapPin} onSave={v => handleFieldSave('district', v)} />
+                    <DetailField label="Organization" value={data.organization?.name || '—'} />
+                    <DetailField label="Branch" value={data.branch?.name || '—'} />
+                    <EditableField label="NIN" value={(data as any).nin} icon={CreditCard} onSave={v => handleFieldSave('nin', v)} />
+                    <EditableField label="Address" value={(data as any).address} icon={Home} onSave={v => handleFieldSave('address', v)} />
+                    {(data as any).notes && <div className="col-span-2 md:col-span-3"><DetailField label="Notes" value={(data as any).notes} /></div>}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Financial Summary Card */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <DollarSign className="w-4 h-4 text-emerald-600" /> Financial Summary
+                    </CardTitle>
+                    <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => onNavigate?.('finance')}>
+                      View in Finance <ExternalLink className="w-3 h-3 ml-1" />
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <ProjectsTimeline projects={data.surveyProjects} />
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="p-4 rounded-xl bg-emerald-50 text-center border border-emerald-100">
+                        <p className="text-xs text-emerald-600 uppercase tracking-wide font-medium">Invoiced</p>
+                        <p className="text-lg font-bold text-emerald-700 mt-1">{formatUGX(totalInvoiced)}</p>
+                      </div>
+                      <div className="p-4 rounded-xl bg-blue-50 text-center border border-blue-100">
+                        <p className="text-xs text-blue-600 uppercase tracking-wide font-medium">Collected</p>
+                        <p className="text-lg font-bold text-blue-700 mt-1">{formatUGX(totalPaid)}</p>
+                      </div>
+                      <div className="p-4 rounded-xl bg-amber-50 text-center border border-amber-100">
+                        <p className="text-xs text-amber-600 uppercase tracking-wide font-medium">Outstanding</p>
+                        <p className="text-lg font-bold text-amber-700 mt-1">{formatUGX(totalOutstanding)}</p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-500">Collection Rate</span>
+                        <span className={`font-semibold ${collectionRate >= 80 ? 'text-emerald-600' : collectionRate >= 50 ? 'text-amber-600' : 'text-red-600'}`}>{collectionRate}%</span>
+                      </div>
+                      <Progress value={collectionRate} className="h-2" />
+                    </div>
+                    {overdueCount > 0 && (
+                      <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3 border border-red-100">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span className="font-medium">{overdueCount} invoice{overdueCount > 1 ? 's' : ''} pending/overdue</span>
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
-            )}
-          </div>
 
-          {/* Right Column: Map + Quick Actions */}
-          <div className="space-y-6">
-            {/* Map Card */}
-            {data.latitude && data.longitude ? (
+              {/* Recent Projects */}
+              {data.surveyProjects.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-blue-600" /> Recent Projects
+                      </CardTitle>
+                      <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => {
+                        const tabEl = document.querySelector('[data-value="projects"]') as HTMLButtonElement
+                        tabEl?.click()
+                      }}>
+                        View All <ArrowRight className="w-3 h-3 ml-1" />
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="divide-y">
+                      {data.surveyProjects.slice(0, 5).map(p => (
+                        <div key={p.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0 hover:bg-slate-50 -mx-2 px-2 rounded transition-colors cursor-pointer" onClick={() => openDetail?.('project', p)}>
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
+                              p.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                              p.status === 'field_survey' ? 'bg-blue-100 text-blue-700' :
+                              p.status === 'data_processing' ? 'bg-amber-100 text-amber-700' :
+                              'bg-indigo-100 text-indigo-700'
+                            }`}>{p.project_ref.slice(-2)}</div>
+                            <div>
+                              <p className="text-sm font-medium">{p.title}</p>
+                              <p className="text-xs text-slate-400 font-mono">{p.project_ref}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {statusBadge(p.status)}
+                            <ArrowRight className="w-4 h-4 text-slate-300" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {/* Right Column */}
+            <div className="space-y-6">
+              {/* Map Card */}
+              {data.latitude && data.longitude ? (
+                <Card>
+                  <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <MapPinned className="w-4 h-4 text-emerald-600" /> Location
+                  </CardTitle></CardHeader>
+                  <CardContent>
+                    <DetailMap latitude={data.latitude} longitude={data.longitude} name={clientName} type="client" />
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="p-8 text-center">
+                    <MapPin className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                    <p className="text-sm text-slate-400">No location data available</p>
+                    <p className="text-xs text-slate-300 mt-1">Add coordinates to see client on map</p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Location Details Card */}
               <Card>
                 <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-emerald-600" /> Location
+                  <Globe className="w-4 h-4 text-blue-600" /> Location Details
                 </CardTitle></CardHeader>
                 <CardContent>
-                  <DetailMap latitude={data.latitude} longitude={data.longitude} name={clientName} type="client" />
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <MapPin className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                  <p className="text-sm text-slate-400">No location data</p>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Location Details Card */}
-            {(data.district || data.sub_county || data.parish || data.village) && (
-              <Card>
-                <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Location Details</CardTitle></CardHeader>
-                <CardContent>
                   <div className="space-y-3">
-                    {data.district && <DetailField label="District" value={data.district} />}
-                    {data.sub_county && <DetailField label="Sub County" value={data.sub_county} />}
-                    {data.parish && <DetailField label="Parish" value={data.parish} />}
-                    {data.village && <DetailField label="Village" value={data.village} />}
+                    <EditableField label="District" value={data.district} icon={MapPin} onSave={v => handleFieldSave('district', v)} />
+                    <EditableField label="Sub County" value={(data as any).sub_county} icon={Home} onSave={v => handleFieldSave('sub_county', v)} />
+                    <EditableField label="Parish" value={(data as any).parish} onSave={v => handleFieldSave('parish', v)} />
+                    <EditableField label="Village" value={(data as any).village} icon={Home} onSave={v => handleFieldSave('village', v)} />
                   </div>
                 </CardContent>
               </Card>
-            )}
-          </div>
-        </div>
-      )}
 
-      {/* Projects Tab */}
-      {activeTab === 'projects' && (
-        <Card>
-          <CardContent className="p-0">
-            <div className="divide-y">
-              {data.surveyProjects.length > 0 ? data.surveyProjects.map(p => (
-                <div key={p.id} className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => openDetail?.('project', p)}>
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center"><MapPin className="w-4 h-4 text-blue-600" /></div>
-                    <div>
-                      <p className="text-sm font-medium">{p.title}</p>
-                      <p className="text-xs text-slate-400 font-mono">{p.project_ref}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {statusBadge(p.status)}
-                    <ArrowRight className="w-4 h-4 text-slate-300" />
-                  </div>
-                </div>
-              )) : <p className="text-sm text-slate-400 text-center py-12">No projects yet</p>}
+              {/* Quick Actions Card */}
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Quick Actions</CardTitle></CardHeader>
+                <CardContent className="space-y-2">
+                  <Button variant="outline" className="w-full justify-start h-8 text-xs" onClick={() => onNavigate?.('projects')}>
+                    <MapPin className="w-3.5 h-3.5 mr-2" /> Create New Project
+                  </Button>
+                  <Button variant="outline" className="w-full justify-start h-8 text-xs" onClick={() => onNavigate?.('finance')}>
+                    <Receipt className="w-3.5 h-3.5 mr-2" /> Create Invoice
+                  </Button>
+                  <Button variant="outline" className="w-full justify-start h-8 text-xs" onClick={() => onNavigate?.('documents')}>
+                    <FileText className="w-3.5 h-3.5 mr-2" /> Upload Document
+                  </Button>
+                  <Button variant="outline" className="w-full justify-start h-8 text-xs" onClick={() => onNavigate?.('communications')}>
+                    <MessageSquare className="w-3.5 h-3.5 mr-2" /> Send Message
+                  </Button>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Finance Tab */}
-      {activeTab === 'finance' && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Card><CardContent className="p-4 text-center">
-              <p className="text-xs text-emerald-500 uppercase">Total Invoiced</p>
-              <p className="text-xl font-bold text-emerald-700 mt-1">{formatUGX(totalInvoiced)}</p>
-            </CardContent></Card>
-            <Card><CardContent className="p-4 text-center">
-              <p className="text-xs text-blue-500 uppercase">Paid</p>
-              <p className="text-xl font-bold text-blue-700 mt-1">{formatUGX(totalPaid)}</p>
-            </CardContent></Card>
           </div>
+        </TabsContent>
+
+        {/* ── Projects Tab ── */}
+        <TabsContent value="projects" className="mt-6">
           <Card>
-            <CardContent className="p-0">
-              <div className="divide-y">
-                {data.invoices.length > 0 ? data.invoices.map(i => (
-                  <div key={i.id} className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors">
-                    <div>
-                      <span className="text-sm font-mono font-medium">{i.invoice_number}</span>
-                      <p className="text-xs text-slate-400 mt-0.5">UGX {Number(i.total_amount).toLocaleString()}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {statusBadge(i.status)}
-                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => openDetail?.('invoice', i)}>View</Button>
-                    </div>
-                  </div>
-                )) : <p className="text-sm text-slate-400 text-center py-12">No invoices yet</p>}
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold">Survey Projects ({data.surveyProjects.length})</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-xs">{activeProjects} Active</Badge>
+                  <Badge variant="outline" className="text-xs">{data.surveyProjects.length - activeProjects} Completed</Badge>
+                </div>
               </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {data.surveyProjects.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">Reference</TableHead>
+                      <TableHead className="text-xs">Title</TableHead>
+                      <TableHead className="text-xs">Status</TableHead>
+                      <TableHead className="text-xs w-10"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.surveyProjects.map(p => (
+                      <TableRow key={p.id} className="cursor-pointer hover:bg-slate-50" onClick={() => openDetail?.('project', p)}>
+                        <TableCell className="font-mono text-xs">{p.project_ref}</TableCell>
+                        <TableCell className="text-sm font-medium">{p.title}</TableCell>
+                        <TableCell>{statusBadge(p.status)}</TableCell>
+                        <TableCell><ArrowRight className="w-4 h-4 text-slate-300" /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="py-12 text-center">
+                  <MapPin className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                  <p className="text-sm font-medium text-slate-600">No projects yet</p>
+                  <p className="text-xs text-slate-400 mt-1">Create a survey project for this client</p>
+                  <Button variant="outline" size="sm" className="mt-3" onClick={() => onNavigate?.('projects')}>
+                    <MapPin className="w-3.5 h-3.5 mr-1" /> New Project
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
-        </div>
-      )}
+        </TabsContent>
 
-      {/* Documents Tab */}
-      {activeTab === 'documents' && (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <FileText className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-            <p className="text-sm font-medium text-slate-600">{data._count.documents} documents on file</p>
-            <p className="text-xs text-slate-400 mt-1">View and manage documents from the Document Vault module</p>
-            <Button variant="outline" size="sm" className="mt-4" onClick={() => onNavigate?.('documents')}>
-              Go to Document Vault
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Communications Tab */}
-      {activeTab === 'communications' && (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <MessageSquare className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-            <p className="text-sm font-medium text-slate-600">{data._count.communications} messages recorded</p>
-            <p className="text-xs text-slate-400 mt-1">View and manage messages from the Messages & SMS module</p>
-            <Button variant="outline" size="sm" className="mt-4" onClick={() => onNavigate?.('communications')}>
-              Go to Messages
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Approvals Tab */}
-      {activeTab === 'approvals' && (
-        <Card>
-          <CardContent className="p-0">
-            <div className="divide-y">
-              {data.surveyProjects.length > 0 ? data.surveyProjects.map(p => (
-                <div key={p.id} className="flex items-center justify-between p-4">
-                  <div>
-                    <p className="text-sm font-medium">{p.title}</p>
-                    <p className="text-xs text-slate-400">Approval status tracked in project details</p>
-                  </div>
-                  {statusBadge(p.status)}
-                </div>
-              )) : <p className="text-sm text-slate-400 text-center py-12">No approval steps yet</p>}
+        {/* ── Finance Tab ── */}
+        <TabsContent value="finance" className="mt-6">
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-4">
+              <Card><CardContent className="p-4 text-center">
+                <p className="text-xs text-emerald-500 uppercase">Total Invoiced</p>
+                <p className="text-xl font-bold text-emerald-700 mt-1">{formatUGX(totalInvoiced)}</p>
+              </CardContent></Card>
+              <Card><CardContent className="p-4 text-center">
+                <p className="text-xs text-blue-500 uppercase">Collected</p>
+                <p className="text-xl font-bold text-blue-700 mt-1">{formatUGX(totalPaid)}</p>
+              </CardContent></Card>
+              <Card><CardContent className="p-4 text-center">
+                <p className="text-xs text-amber-500 uppercase">Outstanding</p>
+                <p className="text-xl font-bold text-amber-700 mt-1">{formatUGX(totalOutstanding)}</p>
+              </CardContent></Card>
             </div>
-          </CardContent>
-        </Card>
-      )}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-semibold">Invoices ({data.invoices.length})</CardTitle>
+                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => onNavigate?.('finance')}>
+                    View in Finance <ExternalLink className="w-3 h-3 ml-1" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">Invoice #</TableHead>
+                      <TableHead className="text-xs">Amount</TableHead>
+                      <TableHead className="text-xs">Status</TableHead>
+                      <TableHead className="text-xs w-10"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.invoices.map(i => (
+                      <TableRow key={i.id} className="cursor-pointer hover:bg-slate-50" onClick={() => openDetail?.('invoice', i)}>
+                        <TableCell className="font-mono text-xs font-medium">{i.invoice_number}</TableCell>
+                        <TableCell className="text-sm">UGX {Number(i.total_amount).toLocaleString()}</TableCell>
+                        <TableCell>{statusBadge(i.status)}</TableCell>
+                        <TableCell><ArrowRight className="w-4 h-4 text-slate-300" /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* ── Documents Tab ── */}
+        <TabsContent value="documents" className="mt-6">
+          <Card>
+            <CardContent className="py-12 text-center">
+              <FileText className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+              <p className="text-sm font-medium text-slate-600">{data._count.documents} documents on file</p>
+              <p className="text-xs text-slate-400 mt-1">View and manage documents from the Document Vault module</p>
+              <Button variant="outline" size="sm" className="mt-4" onClick={() => onNavigate?.('documents')}>
+                Go to Document Vault <ExternalLink className="w-3 h-3 ml-1" />
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Communications Tab ── */}
+        <TabsContent value="communications" className="mt-6">
+          <Card>
+            <CardContent className="py-12 text-center">
+              <MessageSquare className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+              <p className="text-sm font-medium text-slate-600">{data._count.communications} messages recorded</p>
+              <p className="text-xs text-slate-400 mt-1">View and manage messages from the Messages & SMS module</p>
+              <Button variant="outline" size="sm" className="mt-4" onClick={() => onNavigate?.('communications')}>
+                Go to Messages <ExternalLink className="w-3 h-3 ml-1" />
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Approvals Tab ── */}
+        <TabsContent value="approvals" className="mt-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-amber-600" /> Approval Status
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {data.surveyProjects.length > 0 ? (
+                <div className="divide-y">
+                  {data.surveyProjects.map(p => (
+                    <div key={p.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
+                      <div>
+                        <p className="text-sm font-medium">{p.title}</p>
+                        <p className="text-xs text-slate-400 font-mono">{p.project_ref}</p>
+                      </div>
+                      {statusBadge(p.status)}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-400 text-center py-8">No approval steps yet</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Activity Tab ── */}
+        <TabsContent value="activity" className="mt-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Activity className="w-4 h-4 text-violet-600" /> Activity Timeline
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ActivityTimeline clientName={clientName} projects={data.surveyProjects} invoices={data.invoices} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
@@ -578,39 +793,62 @@ function ProjectDetailPage({ data, onRefresh, openDetail }: { data: ProjectRecor
   }
 
   const clientName = data.client?.company_name || `${data.client?.first_name} ${data.client?.last_name}`
+  const approvedSteps = data.approvalSteps.filter(s => s.status === 'approved').length
+  const totalSteps = data.approvalSteps.length
+  const progressPercent = totalSteps > 0 ? Math.round((approvedSteps / totalSteps) * 100) : 0
 
   return (
     <div>
       {/* Hero Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg">
-            <MapPin className="w-7 h-7" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">{data.title}</h2>
-            <div className="flex items-center gap-2 mt-1">
-              {statusBadge(data.status)}
-              <Badge variant="outline" className={`text-xs ${PRIORITY_BADGE[data.priority] || ''}`}>{data.priority}</Badge>
-              <Badge variant="outline" className="text-xs">{fmt(data.project_type)}</Badge>
-              <span className="text-xs text-slate-400 font-mono">{data.project_ref}</span>
+      <div className="relative mb-6">
+        <div className="h-24 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 rounded-xl" />
+        <div className="absolute bottom-0 left-0 right-0 px-6 translate-y-1/2">
+          <div className="flex items-end justify-between">
+            <div className="flex items-end gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-white shadow-lg flex items-center justify-center border-4 border-white">
+                <MapPin className="w-7 h-7 text-blue-600" />
+              </div>
+              <div className="pb-1">
+                <h2 className="text-xl font-bold text-slate-900">{data.title}</h2>
+                <div className="flex items-center gap-2 mt-1">
+                  {statusBadge(data.status)}
+                  <Badge variant="outline" className={`text-xs ${PRIORITY_BADGE[data.priority] || ''}`}>{data.priority}</Badge>
+                  <Badge variant="outline" className="text-xs">{fmt(data.project_type)}</Badge>
+                  <span className="text-xs text-slate-400 font-mono">{data.project_ref}</span>
+                </div>
+              </div>
             </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="h-9 bg-white" disabled={actionLoading}>
+                  Status <ChevronDown className="w-4 h-4 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleStatusChange('intake')}>Intake</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleStatusChange('field_survey')}>Field Survey</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleStatusChange('data_processing')}>Data Processing</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleStatusChange('completed')}>Completed</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="h-9" disabled={actionLoading}>
-              Status <ChevronDown className="w-4 h-4 ml-1" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => handleStatusChange('intake')}>Intake</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleStatusChange('field_survey')}>Field Survey</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleStatusChange('data_processing')}>Data Processing</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleStatusChange('completed')}>Completed</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
+
+      <div className="h-8" />
+
+      {/* Progress Bar */}
+      {totalSteps > 0 && (
+        <Card className="mb-6">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">Project Progress</span>
+              <span className="text-sm text-slate-500">{approvedSteps}/{totalSteps} approvals ({progressPercent}%)</span>
+            </div>
+            <Progress value={progressPercent} className="h-2" />
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Main Content */}
@@ -622,10 +860,15 @@ function ProjectDetailPage({ data, onRefresh, openDetail }: { data: ProjectRecor
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <DetailField label="Reference" value={<span className="font-mono">{data.project_ref}</span>} />
                 <DetailField label="Type" value={fmt(data.project_type)} />
-                <DetailField label="Client" value={clientName} />
+                <DetailField label="Client" value={
+                  <span className="cursor-pointer text-emerald-600 hover:text-emerald-700" onClick={() => openDetail?.('client', data.client)}>
+                    {clientName}
+                  </span>
+                } />
                 <DetailField label="District" value={data.district || '—'} />
                 <DetailField label="Area" value={data.area_hectares ? `${data.area_hectares} hectares` : '—'} />
                 <DetailField label="Due Date" value={data.due_date ? new Date(data.due_date).toLocaleDateString() : '—'} />
+                <DetailField label="Created" value={new Date(data.created_at).toLocaleDateString()} />
                 {data.description && <div className="col-span-2 md:col-span-3"><DetailField label="Description" value={data.description} /></div>}
               </div>
             </CardContent>
@@ -666,12 +909,15 @@ function ProjectDetailPage({ data, onRefresh, openDetail }: { data: ProjectRecor
               {data.fieldObservations.length > 0 ? (
                 <div className="divide-y">
                   {data.fieldObservations.map(o => (
-                    <div key={o.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
+                    <div key={o.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0 hover:bg-slate-50 -mx-2 px-2 rounded cursor-pointer transition-colors" onClick={() => openDetail?.('observation', o)}>
                       <div>
                         <p className="text-sm font-medium">{o.title}</p>
                         <p className="text-xs text-slate-400">{fmt(o.observation_type)}</p>
                       </div>
-                      {statusBadge(o.status)}
+                      <div className="flex items-center gap-2">
+                        {statusBadge(o.status)}
+                        <ArrowRight className="w-4 h-4 text-slate-300" />
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -683,34 +929,46 @@ function ProjectDetailPage({ data, onRefresh, openDetail }: { data: ProjectRecor
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Client Info Card */}
-          <Card>
+          <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => openDetail?.('client', data.client)}>
             <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Client</CardTitle></CardHeader>
             <CardContent>
-              <div className="flex items-center gap-3 mb-3">
+              <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-sm font-bold text-emerald-700">
                   {data.client?.client_type === 'company' ? (data.client?.company_name?.[0] || 'C') : `${data.client?.first_name?.[0] || ''}${data.client?.last_name?.[0] || ''}`}
                 </div>
                 <div>
-                  <p className="text-sm font-medium">{clientName}</p>
+                  <p className="text-sm font-medium text-emerald-700 hover:text-emerald-800">{clientName}</p>
                   <p className="text-xs text-slate-400 font-mono">{data.client?.client_ref}</p>
                 </div>
+                <ExternalLink className="w-4 h-4 text-slate-300 ml-auto" />
               </div>
             </CardContent>
           </Card>
 
           {/* Location Card */}
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-emerald-600" /> Location
-            </CardTitle></CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {data.district && <DetailField label="District" value={data.district} />}
-                {data.sub_county && <DetailField label="Sub County" value={data.sub_county} />}
-                {data.area_hectares && <DetailField label="Area" value={`${data.area_hectares} ha`} />}
-              </div>
-            </CardContent>
-          </Card>
+          {(data.latitude && data.longitude) ? (
+            <Card>
+              <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <MapPinned className="w-4 h-4 text-emerald-600" /> Project Location
+              </CardTitle></CardHeader>
+              <CardContent>
+                <DetailMap latitude={data.latitude!} longitude={data.longitude!} name={data.title} type="project" />
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-emerald-600" /> Location
+              </CardTitle></CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {data.district && <DetailField label="District" value={data.district} />}
+                  {(data as any).sub_county && <DetailField label="Sub County" value={(data as any).sub_county} />}
+                  {data.area_hectares && <DetailField label="Area" value={`${data.area_hectares} ha`} />}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Timeline Card */}
           <Card>
@@ -721,7 +979,7 @@ function ProjectDetailPage({ data, onRefresh, openDetail }: { data: ProjectRecor
               <div className="space-y-2">
                 <DetailField label="Created" value={new Date(data.created_at).toLocaleDateString()} />
                 {data.due_date && <DetailField label="Due" value={new Date(data.due_date).toLocaleDateString()} />}
-                {data.completed_at && <DetailField label="Completed" value={new Date(data.completed_at).toLocaleDateString()} />}
+                {(data as any).completed_at && <DetailField label="Completed" value={new Date((data as any).completed_at).toLocaleDateString()} />}
               </div>
             </CardContent>
           </Card>
