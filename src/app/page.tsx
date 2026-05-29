@@ -8,8 +8,7 @@ import {
 } from '@/components/ui/sidebar'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
-import { ScrollArea } from '@/components/ui/scroll-area'
+// Sheet and ScrollArea removed - using full page detail view
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { MapPin, Search, Database, LayoutDashboard, Users, ShieldCheck, Receipt, GitBranch, Smartphone, Layers, Brain, ScrollText, MessageSquare, FileText, Building2, BarChart2, Moon, Sun, Command, Settings } from 'lucide-react'
@@ -35,11 +34,7 @@ import { ReportsPage } from '@/components/platform/reports-page'
 import { SettingsPage } from '@/components/platform/settings-page'
 import { NotificationCenter } from '@/components/platform/notification-center'
 import { CommandPalette } from '@/components/platform/command-palette'
-import {
-  ClientDetail, ProjectDetail, WorkflowDetail, ObservationDetail, SyncDetail,
-  AIModelDetail, InvoiceDetail, QuotationDetail, DocumentDetail, CommunicationDetail,
-  ApprovalDetail, DomainEventDetail, ReportDetail,
-} from '@/components/platform/detail-panels'
+import { DetailPage } from '@/components/platform/detail-page'
 
 // ── Dark Mode Hook ──
 function useDarkMode() {
@@ -92,6 +87,7 @@ export default function GWSPlatform() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [detailPanel, setDetailPanel] = useState<DetailPanelState>({ open: false, type: '', data: null })
+  const [detailReturnPage, setDetailReturnPage] = useState<PageId>('dashboard')
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [commandOpen, setCommandOpen] = useState(false)
 
@@ -363,8 +359,13 @@ export default function GWSPlatform() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  const openDetail = (type: string, data: any) => setDetailPanel({ open: true, type, data })
-  const closeDetail = () => setDetailPanel({ open: false, type: '', data: null })
+  const openDetail = (type: string, data: any) => {
+    setDetailReturnPage(page)
+    setDetailPanel({ open: true, type, data })
+  }
+  const closeDetail = () => {
+    setDetailPanel({ open: false, type: '', data: null })
+  }
 
   const getRefreshEndpoints = (type: string): string[] => {
     switch (type) {
@@ -381,7 +382,14 @@ export default function GWSPlatform() {
   const handleDetailRefresh = useCallback(() => {
     const endpoints = getRefreshEndpoints(detailPanel.type)
     refreshData(endpoints)
-  }, [detailPanel.type, refreshData])
+    // Also update the detail data from refreshed lists
+    if (detailPanel.data) {
+      let updatedData = null
+      if (detailPanel.type === 'client') updatedData = clients.find(c => c.id === detailPanel.data.id)
+      if (detailPanel.type === 'project') updatedData = projects.find(p => p.id === detailPanel.data.id)
+      if (updatedData) setDetailPanel(prev => ({ ...prev, data: updatedData }))
+    }
+  }, [detailPanel.type, detailPanel.data, refreshData, clients, projects])
 
   const NAV_ITEMS: NavItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Overview' },
@@ -504,8 +512,8 @@ export default function GWSPlatform() {
                   {g.items.map((item) => (
                     <SidebarMenuItem key={item.id + item.label}>
                       <SidebarMenuButton
-                        isActive={page === item.id}
-                        onClick={() => { setPage(item.id); setSearch(''); setSelectedIds(new Set()) }}
+                        isActive={page === item.id && !detailPanel.open}
+                        onClick={() => { setPage(item.id); setSearch(''); setSelectedIds(new Set()); closeDetail() }}
                         tooltip={item.label}
                       >
                         <item.icon className="size-4" />
@@ -539,7 +547,7 @@ export default function GWSPlatform() {
           <Separator orientation="vertical" className="h-5" />
           <div className="flex-1 flex items-center gap-2">
             <h1 className="text-sm font-semibold">
-              {NAV_ITEMS.find(n => n.id === page)?.label || 'Dashboard'}
+              {detailPanel.open ? 'Details' : (NAV_ITEMS.find(n => n.id === page)?.label || 'Dashboard')}
             </h1>
           </div>
           <div className="flex items-center gap-2">
@@ -570,65 +578,26 @@ export default function GWSPlatform() {
         </header>
 
         <div className="flex-1 overflow-auto p-4 md:p-6 pb-20">
-          {renderPage()}
+          {detailPanel.open ? (
+            <DetailPage
+              type={detailPanel.type}
+              data={detailPanel.data}
+              onBack={closeDetail}
+              onRefresh={handleDetailRefresh}
+              onNavigate={(p) => { setPage(p); setSearch(''); setSelectedIds(new Set()) }}
+              openDetail={(type, data) => { setDetailReturnPage(detailReturnPage); openDetail(type, data) }}
+              clients={clients}
+              projects={projects}
+            />
+          ) : (
+            renderPage()
+          )}
         </div>
       </SidebarInset>
 
-      {selectedIds.size > 0 && (
+      {selectedIds.size > 0 && !detailPanel.open && (
         <BulkActionBar selectedCount={selectedIds.size} onClear={() => setSelectedIds(new Set())} onAction={handleBulkAction} />
       )}
-
-      <Sheet open={detailPanel.open} onOpenChange={(open) => { if (!open) closeDetail() }}>
-        <SheetContent side="right" className="w-full sm:w-[480px] sm:max-w-[480px] p-0">
-          <SheetHeader className="p-6 pb-3 border-b">
-            <SheetTitle className="text-base">
-              {detailPanel.type === 'client' && (detailPanel.data?.company_name || `${detailPanel.data?.first_name} ${detailPanel.data?.last_name}`)}
-              {detailPanel.type === 'project' && detailPanel.data?.title}
-              {detailPanel.type === 'workflow' && detailPanel.data?.name}
-              {detailPanel.type === 'observation' && detailPanel.data?.title}
-              {detailPanel.type === 'sync' && `Sync Event`}
-              {detailPanel.type === 'ai-model' && detailPanel.data?.display_name}
-              {detailPanel.type === 'invoice' && detailPanel.data?.invoice_number}
-              {detailPanel.type === 'quotation' && detailPanel.data?.quote_number}
-              {detailPanel.type === 'document' && detailPanel.data?.title}
-              {detailPanel.type === 'communication' && detailPanel.data?.subject}
-              {detailPanel.type === 'approval' && detailPanel.data?.step_name}
-              {detailPanel.type === 'event' && detailPanel.data?.event_type}
-              {detailPanel.type === 'report' && detailPanel.data?.title}
-            </SheetTitle>
-            <SheetDescription>
-              {detailPanel.type === 'client' && detailPanel.data?.client_ref}
-              {detailPanel.type === 'project' && detailPanel.data?.project_ref}
-              {detailPanel.type === 'workflow' && 'Workflow Details'}
-              {detailPanel.type === 'observation' && detailPanel.data?.observation_type}
-              {detailPanel.type === 'invoice' && `Invoice Details`}
-              {detailPanel.type === 'quotation' && `Quotation Details`}
-              {detailPanel.type === 'document' && detailPanel.data?.document_type}
-              {detailPanel.type === 'communication' && detailPanel.data?.channel}
-              {detailPanel.type === 'approval' && 'Approval Step'}
-              {detailPanel.type === 'event' && detailPanel.data?.aggregate}
-              {detailPanel.type === 'report' && detailPanel.data?.description}
-            </SheetDescription>
-          </SheetHeader>
-          <ScrollArea className="flex-1 h-[calc(100vh-100px)]">
-            <div className="p-6 space-y-5">
-              {detailPanel.type === 'client' && <ClientDetail data={detailPanel.data} onRefresh={handleDetailRefresh} />}
-              {detailPanel.type === 'project' && <ProjectDetail data={detailPanel.data} onRefresh={handleDetailRefresh} />}
-              {detailPanel.type === 'workflow' && <WorkflowDetail data={detailPanel.data} />}
-              {detailPanel.type === 'observation' && <ObservationDetail data={detailPanel.data} />}
-              {detailPanel.type === 'sync' && <SyncDetail data={detailPanel.data} />}
-              {detailPanel.type === 'ai-model' && <AIModelDetail data={detailPanel.data} />}
-              {detailPanel.type === 'invoice' && <InvoiceDetail data={detailPanel.data} onRefresh={handleDetailRefresh} />}
-              {detailPanel.type === 'quotation' && <QuotationDetail data={detailPanel.data} />}
-              {detailPanel.type === 'document' && <DocumentDetail data={detailPanel.data} onRefresh={handleDetailRefresh} />}
-              {detailPanel.type === 'communication' && <CommunicationDetail data={detailPanel.data} onRefresh={handleDetailRefresh} />}
-              {detailPanel.type === 'approval' && <ApprovalDetail data={detailPanel.data} onRefresh={handleDetailRefresh} />}
-              {detailPanel.type === 'event' && <DomainEventDetail data={detailPanel.data} />}
-              {detailPanel.type === 'report' && <ReportDetail data={detailPanel.data} />}
-            </div>
-          </ScrollArea>
-        </SheetContent>
-      </Sheet>
 
       {/* Command Palette */}
       <CommandPalette
