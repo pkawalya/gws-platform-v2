@@ -38,8 +38,8 @@ $statusColors = [
 <div>
     {{-- Empty State --}}
     @if(($summary['total_projects'] ?? 0) === 0)
-        <div class="text-center py-12">
-            <div class="mx-auto w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4">
+        <div class="text-center py-12 bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600">
+            <div class="mx-auto w-14 h-14 bg-gray-100 dark:bg-gray-700 rounded-xl flex items-center justify-center mb-4">
                 <svg class="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
                 </svg>
@@ -51,62 +51,55 @@ $statusColors = [
         {{-- Summary Row: 3 Stat Cards --}}
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             {{-- Total Projects --}}
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Projects</p>
-                        <p class="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">
-                            {{ $summary['total_projects'] ?? 0 }}
-                        </p>
-                    </div>
-                    <div class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+            <div class="relative overflow-hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+                <div class="absolute top-0 right-0 w-20 h-20 bg-blue-50 dark:bg-blue-900/20 rounded-full -mr-6 -mt-6"></div>
+                <div class="relative">
+                    <div class="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
                         <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
                         </svg>
                     </div>
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400 mt-3">Total Projects</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-0.5">{{ $summary['total_projects'] ?? 0 }}</p>
                 </div>
             </div>
 
             {{-- Total Area --}}
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Area</p>
-                        <p class="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">
-                            {{ number_format($summary['total_area_hectares'] ?? 0, 2) }}
-                            <span class="text-sm font-normal text-gray-500 dark:text-gray-400">ha</span>
-                        </p>
-                    </div>
-                    <div class="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                        <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="relative overflow-hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+                <div class="absolute top-0 right-0 w-20 h-20 bg-emerald-50 dark:bg-emerald-900/20 rounded-full -mr-6 -mt-6"></div>
+                <div class="relative">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
                         </svg>
                     </div>
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400 mt-3">Total Area</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-0.5">
+                        {{ number_format($summary['total_area_hectares'] ?? 0, 2) }}
+                        <span class="text-sm font-normal text-gray-500 dark:text-gray-400">ha</span>
+                    </p>
                 </div>
             </div>
 
             {{-- Districts Covered --}}
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Districts Covered</p>
-                        <p class="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">
-                            {{ $summary['district_count'] ?? 0 }}
-                        </p>
-                    </div>
-                    <div class="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+            <div class="relative overflow-hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+                <div class="absolute top-0 right-0 w-20 h-20 bg-purple-50 dark:bg-purple-900/20 rounded-full -mr-6 -mt-6"></div>
+                <div class="relative">
+                    <div class="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
                         <svg class="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
                         </svg>
                     </div>
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400 mt-3">Districts Covered</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-0.5">{{ $summary['district_count'] ?? 0 }}</p>
                 </div>
             </div>
         </div>
 
         {{-- Interactive Leaflet Map --}}
-        <div class="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <div class="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 flex items-center justify-between">
+        <div class="mb-6 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <svg class="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
@@ -139,8 +132,8 @@ $statusColors = [
         {{-- Breakdowns Row --}}
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
             {{-- District Breakdown --}}
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div class="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">District Breakdown</h3>
                 </div>
                 <div class="p-4 space-y-3 max-h-96 overflow-y-auto">
@@ -163,8 +156,8 @@ $statusColors = [
             </div>
 
             {{-- Project Type Breakdown --}}
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div class="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">Project Types</h3>
                 </div>
                 <div class="p-4 max-h-96 overflow-y-auto">
@@ -183,8 +176,8 @@ $statusColors = [
             </div>
 
             {{-- Projects by Status --}}
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <div class="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">By Status</h3>
                 </div>
                 <div class="p-4 flex flex-wrap gap-2">
@@ -201,9 +194,9 @@ $statusColors = [
         </div>
 
         {{-- Project List --}}
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <div class="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Projects</h3>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">Projects</h3>
             </div>
 
             @forelse($projects as $project)
