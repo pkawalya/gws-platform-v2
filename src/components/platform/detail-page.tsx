@@ -15,9 +15,9 @@ import {
   CalendarDays, ArrowRight, AlertCircle, ArrowLeft, Users, Activity,
   Smartphone, Layers, Brain, BarChart2, Building2, X, Phone, Mail,
   Pencil, Save, Globe, Home, MapPinned, Building, StickyNote,
-  CreditCard, Clock, User, ExternalLink, Copy,
+  CreditCard, Clock, User, ExternalLink, Copy, Plus,
 } from 'lucide-react'
-import { fmt, statusBadge, PRIORITY_BADGE, formatUGX, STATUS_BADGE } from './constants'
+import { fmt, statusBadge, PRIORITY_BADGE, formatUGX, STATUS_BADGE, UGANDA_DISTRICTS } from './constants'
 import { DetailField } from './helpers'
 import type { ClientRecord, ProjectRecord, PageId } from './types'
 import { useState, useEffect, useRef, useCallback } from 'react'
@@ -27,6 +27,10 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { toast } from 'sonner'
 
 // ── Interactive Map for Detail Pages ──
 function DetailMap({ latitude, longitude, name, type = 'client' }: { latitude: string; longitude: string; name: string; type?: string }) {
@@ -246,9 +250,11 @@ interface DetailPageProps {
   openDetail?: (type: string, data: any) => void
   clients?: any[]
   projects?: any[]
+  documentsData?: any
+  commsData?: any
 }
 
-export function DetailPage({ type, data, onBack, onRefresh, onNavigate, openDetail, clients, projects }: DetailPageProps) {
+export function DetailPage({ type, data, onBack, onRefresh, onNavigate, openDetail, clients, projects, documentsData, commsData }: DetailPageProps) {
   if (!data) return null
 
   const breadcrumbLabel = (() => {
@@ -275,7 +281,7 @@ export function DetailPage({ type, data, onBack, onRefresh, onNavigate, openDeta
     <div className="animate-in fade-in slide-in-from-right-2 duration-300">
       <DetailBreadcrumb type={type} label={breadcrumbLabel} onBack={onBack} />
 
-      {type === 'client' && <ClientDetailPage data={data} onRefresh={onRefresh} openDetail={openDetail} onNavigate={onNavigate} />}
+      {type === 'client' && <ClientDetailPage data={data} onRefresh={onRefresh} openDetail={openDetail} onNavigate={onNavigate} documentsData={documentsData} commsData={commsData} />}
       {type === 'project' && <ProjectDetailPage data={data} onRefresh={onRefresh} openDetail={openDetail} />}
       {type === 'workflow' && <WorkflowDetailPage data={data} />}
       {type === 'observation' && <ObservationDetailPage data={data} />}
@@ -296,10 +302,134 @@ export function DetailPage({ type, data, onBack, onRefresh, onNavigate, openDeta
 // CLIENT DETAIL PAGE — Comprehensive Full Page Layout
 // ══════════════════════════════════════════════════════════════
 
-function ClientDetailPage({ data, onRefresh, openDetail, onNavigate }: { data: ClientRecord; onRefresh: () => void; openDetail?: (type: string, data: any) => void; onNavigate?: (page: PageId) => void }) {
+function ClientDetailPage({ data, onRefresh, openDetail, onNavigate, documentsData, commsData }: {
+  data: ClientRecord; onRefresh: () => void; openDetail?: (type: string, data: any) => void; onNavigate?: (page: PageId) => void
+  documentsData?: any; commsData?: any
+}) {
   const [actionLoading, setActionLoading] = useState(false)
   const [copiedRef, setCopiedRef] = useState(false)
+  const [showProjectDialog, setShowProjectDialog] = useState(false)
+  const [showInvoiceDialog, setShowInvoiceDialog] = useState(false)
+  const [showDocumentDialog, setShowDocumentDialog] = useState(false)
+  const [showMessageDialog, setShowMessageDialog] = useState(false)
   const clientName = data.client_type === 'company' ? data.company_name : `${data.first_name} ${data.last_name}`
+
+  // ── Inline Create: Project ──
+  const [projectForm, setProjectForm] = useState({ title: '', project_type: 'cadastral', district: data.district || '', priority: 'normal', status: 'intake' })
+  const [projectErrors, setProjectErrors] = useState<Record<string, string>>({})
+  const [projectLoading, setProjectLoading] = useState(false)
+
+  const handleCreateProject = async () => {
+    const errs: Record<string, string> = {}
+    if (!projectForm.title.trim()) errs.title = 'Project title is required'
+    setProjectErrors(errs)
+    if (Object.keys(errs).length > 0) return
+    setProjectLoading(true)
+    try {
+      const res = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...projectForm, client_id: data.id }),
+      })
+      if (res.ok) {
+        setShowProjectDialog(false)
+        setProjectForm({ title: '', project_type: 'cadastral', district: data.district || '', priority: 'normal', status: 'intake' })
+        setProjectErrors({})
+        onRefresh()
+        toast.success('Project created successfully')
+      } else {
+        toast.error('Failed to create project')
+      }
+    } catch { toast.error('Failed to create project') }
+    finally { setProjectLoading(false) }
+  }
+
+  // ── Inline Create: Invoice ──
+  const [invoiceForm, setInvoiceForm] = useState({ amount: '', tax_amount: '', status: 'draft', due_date: '' })
+  const [invoiceErrors, setInvoiceErrors] = useState<Record<string, string>>({})
+  const [invoiceLoading, setInvoiceLoading] = useState(false)
+
+  const handleCreateInvoice = async () => {
+    const errs: Record<string, string> = {}
+    if (!invoiceForm.amount || parseFloat(invoiceForm.amount) <= 0) errs.amount = 'Enter a valid amount'
+    setInvoiceErrors(errs)
+    if (Object.keys(errs).length > 0) return
+    setInvoiceLoading(true)
+    try {
+      const amount = Number(invoiceForm.amount)
+      const taxAmount = invoiceForm.tax_amount ? Number(invoiceForm.tax_amount) : 0
+      const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}`
+      const res = await fetch('/api/finance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: data.id, invoice_number: invoiceNumber, amount, tax_amount: taxAmount, total_amount: amount + taxAmount, status: invoiceForm.status, due_date: invoiceForm.due_date || null }),
+      })
+      if (res.ok) {
+        setShowInvoiceDialog(false)
+        setInvoiceForm({ amount: '', tax_amount: '', status: 'draft', due_date: '' })
+        setInvoiceErrors({})
+        onRefresh()
+        toast.success('Invoice created successfully')
+      } else { toast.error('Failed to create invoice') }
+    } catch { toast.error('Failed to create invoice') }
+    finally { setInvoiceLoading(false) }
+  }
+
+  // ── Inline Create: Document ──
+  const [docForm, setDocForm] = useState({ title: '', document_type: 'survey_report', description: '' })
+  const [docErrors, setDocErrors] = useState<Record<string, string>>({})
+  const [docLoading, setDocLoading] = useState(false)
+
+  const handleCreateDocument = async () => {
+    const errs: Record<string, string> = {}
+    if (!docForm.title.trim()) errs.title = 'Document title is required'
+    setDocErrors(errs)
+    if (Object.keys(errs).length > 0) return
+    setDocLoading(true)
+    try {
+      const res = await fetch('/api/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...docForm, client_id: data.id }),
+      })
+      if (res.ok) {
+        setShowDocumentDialog(false)
+        setDocForm({ title: '', document_type: 'survey_report', description: '' })
+        setDocErrors({})
+        onRefresh()
+        toast.success('Document created successfully')
+      } else { toast.error('Failed to create document') }
+    } catch { toast.error('Failed to create document') }
+    finally { setDocLoading(false) }
+  }
+
+  // ── Inline Create: Message ──
+  const [msgForm, setMsgForm] = useState({ subject: '', body: '', channel: 'sms', direction: 'outbound' })
+  const [msgErrors, setMsgErrors] = useState<Record<string, string>>({})
+  const [msgLoading, setMsgLoading] = useState(false)
+
+  const handleCreateMessage = async () => {
+    const errs: Record<string, string> = {}
+    if (!msgForm.body.trim()) errs.body = 'Message body is required'
+    setMsgErrors(errs)
+    if (Object.keys(errs).length > 0) return
+    setMsgLoading(true)
+    try {
+      const res = await fetch('/api/communications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...msgForm, client_id: data.id }),
+      })
+      if (res.ok) {
+        setShowMessageDialog(false)
+        setMsgForm({ subject: '', body: '', channel: 'sms', direction: 'outbound' })
+        setMsgErrors({})
+        onRefresh()
+        toast.success('Message sent successfully')
+      } else { toast.error('Failed to send message') }
+    } catch { toast.error('Failed to send message') }
+    finally { setMsgLoading(false) }
+  }
 
   const handleStatusChange = async (newStatus: string) => {
     setActionLoading(true)
@@ -332,33 +462,41 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate }: { data: C
   const overdueCount = data.invoices.filter(i => i.status === 'overdue' || i.status === 'pending').length
   const activeProjects = data.surveyProjects.filter(p => p.status !== 'completed').length
 
+  // Filter documents and communications for this client
+  const clientDocs = documentsData?.documents?.filter((d: any) => d.client_id === data.id) || []
+  const clientComms = commsData?.communications?.filter((c: any) => c.client_id === data.id) || []
+
+  const invoiceTotalPreview = (parseFloat(invoiceForm.amount) || 0) + (parseFloat(invoiceForm.tax_amount) || 0)
+
   return (
     <div>
-      {/* ── Hero Header with Cover ── */}
-      <div className="relative mb-6">
-        <div className="h-32 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 rounded-xl" />
+      {/* ── Hero Header ── */}
+      <div className="relative mb-8">
+        <div className="h-36 bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 rounded-2xl shadow-lg" />
         <div className="absolute bottom-0 left-0 right-0 px-6 translate-y-1/2">
           <div className="flex items-end justify-between">
             <div className="flex items-end gap-4">
-              <div className="w-20 h-20 rounded-2xl bg-white shadow-lg flex items-center justify-center text-3xl font-bold text-emerald-700 border-4 border-white">
+              <div className="w-22 h-22 rounded-2xl bg-white shadow-xl flex items-center justify-center text-3xl font-bold text-emerald-700 border-4 border-white" style={{ width: '88px', height: '88px' }}>
                 {data.client_type === 'company' ? (data.company_name?.[0] || 'C') : `${data.first_name?.[0] || ''}${data.last_name?.[0] || ''}`}
               </div>
-              <div className="pb-1">
+              <div className="pb-2">
                 <h2 className="text-2xl font-bold text-slate-900">{clientName}</h2>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                   {statusBadge(data.status)}
-                  <Badge variant="outline" className="text-xs bg-white">{data.client_type === 'company' ? 'Company' : 'Individual'}</Badge>
-                  <button className="flex items-center gap-1 text-xs text-slate-500 hover:text-emerald-600 font-mono bg-white px-1.5 py-0.5 rounded" onClick={copyRef}>
+                  <Badge variant="outline" className="text-xs bg-white/90 backdrop-blur-sm">{data.client_type === 'company' ? 'Company' : 'Individual'}</Badge>
+                  <button className="flex items-center gap-1 text-xs text-slate-500 hover:text-emerald-600 font-mono bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-md transition-colors" onClick={copyRef}>
                     {data.client_ref} <Copy className="w-3 h-3" />
                   </button>
-                  {copiedRef && <span className="text-[10px] text-emerald-600">Copied!</span>}
+                  {copiedRef && <span className="text-[10px] text-emerald-600 font-medium">Copied!</span>}
+                  {data.email && <a href={`mailto:${data.email}`} className="flex items-center gap-1 text-xs text-slate-500 hover:text-blue-600 bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-md transition-colors"><Mail className="w-3 h-3" />{data.email}</a>}
+                  {data.phone && <a href={`tel:${data.phone}`} className="flex items-center gap-1 text-xs text-slate-500 hover:text-emerald-600 bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-md transition-colors"><Phone className="w-3 h-3" />{data.phone}</a>}
                 </div>
               </div>
             </div>
-            <div className="pb-1 flex items-center gap-2">
+            <div className="pb-2 flex items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-9 bg-white" disabled={actionLoading}>
+                  <Button variant="outline" className="h-9 bg-white/95 backdrop-blur-sm shadow-sm" disabled={actionLoading}>
                     Actions <ChevronDown className="w-4 h-4 ml-1" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -376,26 +514,25 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate }: { data: C
         </div>
       </div>
 
-      {/* Spacer for the overlapping header */}
-      <div className="h-10" />
+      <div className="h-12" />
 
       {/* ── Quick Stats Row ── */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
         {[
-          { label: 'Active Projects', value: activeProjects, icon: MapPin, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Total Projects', value: data._count.surveyProjects, icon: GitBranch, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-          { label: 'Invoices', value: data.invoices.length, icon: Receipt, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'Documents', value: data._count.documents, icon: FileText, color: 'text-amber-600', bg: 'bg-amber-50' },
-          { label: 'Messages', value: data._count.communications, icon: MessageSquare, color: 'text-violet-600', bg: 'bg-violet-50' },
+          { label: 'Active Projects', value: activeProjects, icon: MapPin, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
+          { label: 'Total Projects', value: data._count.surveyProjects, icon: GitBranch, color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-100' },
+          { label: 'Invoices', value: data.invoices.length, icon: Receipt, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' },
+          { label: 'Documents', value: data._count.documents, icon: FileText, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' },
+          { label: 'Messages', value: data._count.communications, icon: MessageSquare, color: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-100' },
         ].map(s => (
-          <Card key={s.label} className="hover:shadow-md transition-shadow cursor-pointer">
+          <Card key={s.label} className={`hover:shadow-md transition-all cursor-pointer border ${s.border}`}>
             <CardContent className="p-4 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg ${s.bg} flex items-center justify-center`}>
+              <div className={`w-11 h-11 rounded-xl ${s.bg} flex items-center justify-center`}>
                 <s.icon className={`w-5 h-5 ${s.color}`} />
               </div>
               <div>
-                <p className="text-2xl font-bold">{s.value}</p>
-                <p className="text-xs text-slate-500">{s.label}</p>
+                <p className="text-2xl font-bold tracking-tight">{s.value}</p>
+                <p className="text-[11px] text-slate-500 font-medium">{s.label}</p>
               </div>
             </CardContent>
           </Card>
@@ -427,7 +564,6 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate }: { data: C
         {/* ── Overview Tab ── */}
         <TabsContent value="overview" className="mt-6">
           <div className="grid lg:grid-cols-3 gap-6">
-            {/* Left Column */}
             <div className="lg:col-span-2 space-y-6">
               {/* Contact Information Card */}
               <Card>
@@ -519,11 +655,11 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate }: { data: C
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="divide-y">
+                    <div className="divide-y divide-slate-100">
                       {data.surveyProjects.slice(0, 5).map(p => (
-                        <div key={p.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0 hover:bg-slate-50 -mx-2 px-2 rounded transition-colors cursor-pointer" onClick={() => openDetail?.('project', p)}>
+                        <div key={p.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0 hover:bg-slate-50/80 -mx-2 px-2 rounded-lg transition-colors cursor-pointer" onClick={() => openDetail?.('project', p)}>
                           <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
+                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold ${
                               p.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
                               p.status === 'field_survey' ? 'bg-blue-100 text-blue-700' :
                               p.status === 'data_processing' ? 'bg-amber-100 text-amber-700' :
@@ -559,10 +695,10 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate }: { data: C
                   </CardContent>
                 </Card>
               ) : (
-                <Card>
+                <Card className="border-dashed">
                   <CardContent className="p-8 text-center">
                     <MapPin className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                    <p className="text-sm text-slate-400">No location data available</p>
+                    <p className="text-sm text-slate-400">No location data</p>
                     <p className="text-xs text-slate-300 mt-1">Add coordinates to see client on map</p>
                   </CardContent>
                 </Card>
@@ -583,21 +719,29 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate }: { data: C
                 </CardContent>
               </Card>
 
-              {/* Quick Actions Card */}
-              <Card>
-                <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Quick Actions</CardTitle></CardHeader>
-                <CardContent className="space-y-2">
-                  <Button variant="outline" className="w-full justify-start h-8 text-xs" onClick={() => onNavigate?.('projects')}>
-                    <MapPin className="w-3.5 h-3.5 mr-2" /> Create New Project
+              {/* Quick Create Card - BEAUTIFIED */}
+              <Card className="border-emerald-100 bg-gradient-to-b from-emerald-50/50 to-white">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <Plus className="w-4 h-4 text-emerald-600" /> Quick Create
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 gap-2">
+                  <Button size="sm" className="h-auto py-2.5 flex flex-col items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setShowProjectDialog(true)}>
+                    <MapPin className="w-4 h-4" />
+                    <span className="text-[11px] font-medium">New Project</span>
                   </Button>
-                  <Button variant="outline" className="w-full justify-start h-8 text-xs" onClick={() => onNavigate?.('finance')}>
-                    <Receipt className="w-3.5 h-3.5 mr-2" /> Create Invoice
+                  <Button size="sm" className="h-auto py-2.5 flex flex-col items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setShowInvoiceDialog(true)}>
+                    <Receipt className="w-4 h-4" />
+                    <span className="text-[11px] font-medium">New Invoice</span>
                   </Button>
-                  <Button variant="outline" className="w-full justify-start h-8 text-xs" onClick={() => onNavigate?.('documents')}>
-                    <FileText className="w-3.5 h-3.5 mr-2" /> Upload Document
+                  <Button size="sm" className="h-auto py-2.5 flex flex-col items-center gap-1 bg-amber-600 hover:bg-amber-700 text-white" onClick={() => setShowDocumentDialog(true)}>
+                    <FileText className="w-4 h-4" />
+                    <span className="text-[11px] font-medium">New Document</span>
                   </Button>
-                  <Button variant="outline" className="w-full justify-start h-8 text-xs" onClick={() => onNavigate?.('communications')}>
-                    <MessageSquare className="w-3.5 h-3.5 mr-2" /> Send Message
+                  <Button size="sm" className="h-auto py-2.5 flex flex-col items-center gap-1 bg-violet-600 hover:bg-violet-700 text-white" onClick={() => setShowMessageDialog(true)}>
+                    <MessageSquare className="w-4 h-4" />
+                    <span className="text-[11px] font-medium">New Message</span>
                   </Button>
                 </CardContent>
               </Card>
@@ -614,6 +758,9 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate }: { data: C
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-xs">{activeProjects} Active</Badge>
                   <Badge variant="outline" className="text-xs">{data.surveyProjects.length - activeProjects} Completed</Badge>
+                  <Button size="sm" className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setShowProjectDialog(true)}>
+                    <Plus className="w-3.5 h-3.5 mr-1" /> New Project
+                  </Button>
                 </div>
               </div>
             </CardHeader>
@@ -640,12 +787,14 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate }: { data: C
                   </TableBody>
                 </Table>
               ) : (
-                <div className="py-12 text-center">
-                  <MapPin className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                <div className="py-16 text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
+                    <MapPin className="w-8 h-8 text-blue-300" />
+                  </div>
                   <p className="text-sm font-medium text-slate-600">No projects yet</p>
-                  <p className="text-xs text-slate-400 mt-1">Create a survey project for this client</p>
-                  <Button variant="outline" size="sm" className="mt-3" onClick={() => onNavigate?.('projects')}>
-                    <MapPin className="w-3.5 h-3.5 mr-1" /> New Project
+                  <p className="text-xs text-slate-400 mt-1 mb-4">Create a survey project for this client</p>
+                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setShowProjectDialog(true)}>
+                    <Plus className="w-3.5 h-3.5 mr-1" /> New Project
                   </Button>
                 </div>
               )}
@@ -657,16 +806,16 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate }: { data: C
         <TabsContent value="finance" className="mt-6">
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-4">
-              <Card><CardContent className="p-4 text-center">
-                <p className="text-xs text-emerald-500 uppercase">Total Invoiced</p>
+              <Card className="border-emerald-100"><CardContent className="p-4 text-center">
+                <p className="text-xs text-emerald-500 uppercase font-medium">Total Invoiced</p>
                 <p className="text-xl font-bold text-emerald-700 mt-1">{formatUGX(totalInvoiced)}</p>
               </CardContent></Card>
-              <Card><CardContent className="p-4 text-center">
-                <p className="text-xs text-blue-500 uppercase">Collected</p>
+              <Card className="border-blue-100"><CardContent className="p-4 text-center">
+                <p className="text-xs text-blue-500 uppercase font-medium">Collected</p>
                 <p className="text-xl font-bold text-blue-700 mt-1">{formatUGX(totalPaid)}</p>
               </CardContent></Card>
-              <Card><CardContent className="p-4 text-center">
-                <p className="text-xs text-amber-500 uppercase">Outstanding</p>
+              <Card className="border-amber-100"><CardContent className="p-4 text-center">
+                <p className="text-xs text-amber-500 uppercase font-medium">Outstanding</p>
                 <p className="text-xl font-bold text-amber-700 mt-1">{formatUGX(totalOutstanding)}</p>
               </CardContent></Card>
             </div>
@@ -674,32 +823,50 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate }: { data: C
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-semibold">Invoices ({data.invoices.length})</CardTitle>
-                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => onNavigate?.('finance')}>
-                    View in Finance <ExternalLink className="w-3 h-3 ml-1" />
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => onNavigate?.('finance')}>
+                      View in Finance <ExternalLink className="w-3 h-3 ml-1" />
+                    </Button>
+                    <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setShowInvoiceDialog(true)}>
+                      <Plus className="w-3.5 h-3.5 mr-1" /> New Invoice
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-xs">Invoice #</TableHead>
-                      <TableHead className="text-xs">Amount</TableHead>
-                      <TableHead className="text-xs">Status</TableHead>
-                      <TableHead className="text-xs w-10"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.invoices.map(i => (
-                      <TableRow key={i.id} className="cursor-pointer hover:bg-slate-50" onClick={() => openDetail?.('invoice', i)}>
-                        <TableCell className="font-mono text-xs font-medium">{i.invoice_number}</TableCell>
-                        <TableCell className="text-sm">UGX {Number(i.total_amount).toLocaleString()}</TableCell>
-                        <TableCell>{statusBadge(i.status)}</TableCell>
-                        <TableCell><ArrowRight className="w-4 h-4 text-slate-300" /></TableCell>
+                {data.invoices.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">Invoice #</TableHead>
+                        <TableHead className="text-xs">Amount</TableHead>
+                        <TableHead className="text-xs">Status</TableHead>
+                        <TableHead className="text-xs w-10"></TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {data.invoices.map(i => (
+                        <TableRow key={i.id} className="cursor-pointer hover:bg-slate-50" onClick={() => openDetail?.('invoice', i)}>
+                          <TableCell className="font-mono text-xs font-medium">{i.invoice_number}</TableCell>
+                          <TableCell className="text-sm">UGX {Number(i.total_amount).toLocaleString()}</TableCell>
+                          <TableCell>{statusBadge(i.status)}</TableCell>
+                          <TableCell><ArrowRight className="w-4 h-4 text-slate-300" /></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="py-16 text-center">
+                    <div className="w-16 h-16 rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto mb-4">
+                      <Receipt className="w-8 h-8 text-emerald-300" />
+                    </div>
+                    <p className="text-sm font-medium text-slate-600">No invoices yet</p>
+                    <p className="text-xs text-slate-400 mt-1 mb-4">Create an invoice for this client</p>
+                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setShowInvoiceDialog(true)}>
+                      <Plus className="w-3.5 h-3.5 mr-1" /> New Invoice
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -708,13 +875,50 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate }: { data: C
         {/* ── Documents Tab ── */}
         <TabsContent value="documents" className="mt-6">
           <Card>
-            <CardContent className="py-12 text-center">
-              <FileText className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-              <p className="text-sm font-medium text-slate-600">{data._count.documents} documents on file</p>
-              <p className="text-xs text-slate-400 mt-1">View and manage documents from the Document Vault module</p>
-              <Button variant="outline" size="sm" className="mt-4" onClick={() => onNavigate?.('documents')}>
-                Go to Document Vault <ExternalLink className="w-3 h-3 ml-1" />
-              </Button>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-amber-600" /> Documents ({clientDocs.length || data._count.documents})
+                </CardTitle>
+                <Button size="sm" className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white" onClick={() => setShowDocumentDialog(true)}>
+                  <Plus className="w-3.5 h-3.5 mr-1" /> New Document
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {clientDocs.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">Title</TableHead>
+                      <TableHead className="text-xs">Type</TableHead>
+                      <TableHead className="text-xs">Verified</TableHead>
+                      <TableHead className="text-xs">Created</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clientDocs.map((d: any) => (
+                      <TableRow key={d.id} className="cursor-pointer hover:bg-slate-50" onClick={() => openDetail?.('document', d)}>
+                        <TableCell className="text-sm font-medium">{d.title}</TableCell>
+                        <TableCell><Badge variant="outline" className="text-[10px]">{fmt(d.document_type)}</Badge></TableCell>
+                        <TableCell>{d.is_verified ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <Clock3 className="w-4 h-4 text-amber-400" />}</TableCell>
+                        <TableCell className="text-xs text-slate-400">{d.created_at ? new Date(d.created_at).toLocaleDateString() : '—'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="py-16 text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-4">
+                    <FileText className="w-8 h-8 text-amber-300" />
+                  </div>
+                  <p className="text-sm font-medium text-slate-600">No documents yet</p>
+                  <p className="text-xs text-slate-400 mt-1 mb-4">Upload a document for this client</p>
+                  <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white" onClick={() => setShowDocumentDialog(true)}>
+                    <Plus className="w-3.5 h-3.5 mr-1" /> New Document
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -722,13 +926,52 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate }: { data: C
         {/* ── Communications Tab ── */}
         <TabsContent value="communications" className="mt-6">
           <Card>
-            <CardContent className="py-12 text-center">
-              <MessageSquare className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-              <p className="text-sm font-medium text-slate-600">{data._count.communications} messages recorded</p>
-              <p className="text-xs text-slate-400 mt-1">View and manage messages from the Messages & SMS module</p>
-              <Button variant="outline" size="sm" className="mt-4" onClick={() => onNavigate?.('communications')}>
-                Go to Messages <ExternalLink className="w-3 h-3 ml-1" />
-              </Button>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-violet-600" /> Messages ({clientComms.length || data._count.communications})
+                </CardTitle>
+                <Button size="sm" className="h-7 text-xs bg-violet-600 hover:bg-violet-700 text-white" onClick={() => setShowMessageDialog(true)}>
+                  <Plus className="w-3.5 h-3.5 mr-1" /> New Message
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {clientComms.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">Subject</TableHead>
+                      <TableHead className="text-xs">Channel</TableHead>
+                      <TableHead className="text-xs">Direction</TableHead>
+                      <TableHead className="text-xs">Status</TableHead>
+                      <TableHead className="text-xs">Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clientComms.map((c: any) => (
+                      <TableRow key={c.id} className="cursor-pointer hover:bg-slate-50" onClick={() => openDetail?.('communication', c)}>
+                        <TableCell className="text-sm font-medium">{c.subject || '(No Subject)'}</TableCell>
+                        <TableCell><Badge variant="outline" className="text-[10px] capitalize">{c.channel}</Badge></TableCell>
+                        <TableCell><Badge variant="outline" className="text-[10px] capitalize">{c.direction}</Badge></TableCell>
+                        <TableCell>{statusBadge(c.status)}</TableCell>
+                        <TableCell className="text-xs text-slate-400">{c.created_at ? new Date(c.created_at).toLocaleDateString() : '—'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="py-16 text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-violet-50 flex items-center justify-center mx-auto mb-4">
+                    <MessageSquare className="w-8 h-8 text-violet-300" />
+                  </div>
+                  <p className="text-sm font-medium text-slate-600">No messages yet</p>
+                  <p className="text-xs text-slate-400 mt-1 mb-4">Send a message to this client</p>
+                  <Button size="sm" className="bg-violet-600 hover:bg-violet-700 text-white" onClick={() => setShowMessageDialog(true)}>
+                    <Plus className="w-3.5 h-3.5 mr-1" /> New Message
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -743,9 +986,9 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate }: { data: C
             </CardHeader>
             <CardContent>
               {data.surveyProjects.length > 0 ? (
-                <div className="divide-y">
+                <div className="divide-y divide-slate-100">
                   {data.surveyProjects.map(p => (
-                    <div key={p.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
+                    <div key={p.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0 hover:bg-slate-50 -mx-2 px-2 rounded-lg transition-colors cursor-pointer" onClick={() => openDetail?.('project', p)}>
                       <div>
                         <p className="text-sm font-medium">{p.title}</p>
                         <p className="text-xs text-slate-400 font-mono">{p.project_ref}</p>
@@ -766,7 +1009,7 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate }: { data: C
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Activity className="w-4 h-4 text-violet-600" /> Activity Timeline
+                <Activity className="w-4 h-4 text-slate-600" /> Activity Timeline
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -775,6 +1018,216 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate }: { data: C
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* ── Inline Create Dialog: Project ── */}
+      <Dialog open={showProjectDialog} onOpenChange={setShowProjectDialog}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center"><MapPin className="w-4 h-4 text-blue-600" /></div>
+              New Project for {clientName}
+            </DialogTitle>
+            <DialogDescription>Create a survey project linked to this client.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Project Title <span className="text-red-500">*</span></Label>
+              <Input className={`h-9 text-sm ${projectErrors.title ? 'border-red-300' : ''}`} placeholder="e.g. Land Survey - Kampala Block 234" value={projectForm.title} onChange={e => setProjectForm({ ...projectForm, title: e.target.value })} />
+              {projectErrors.title && <p className="text-[10px] text-red-500">{projectErrors.title}</p>}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Project Type</Label>
+                <Select value={projectForm.project_type} onValueChange={v => setProjectForm({ ...projectForm, project_type: v })}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cadastral">Cadastral</SelectItem>
+                    <SelectItem value="topographic">Topographic</SelectItem>
+                    <SelectItem value="boundary">Boundary</SelectItem>
+                    <SelectItem value="engineering">Engineering</SelectItem>
+                    <SelectItem value="hydrographic">Hydrographic</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Priority</Label>
+                <Select value={projectForm.priority} onValueChange={v => setProjectForm({ ...projectForm, priority: v })}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="normal">Normal</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-xs">District</Label>
+              <Input className="h-9 text-sm" value={projectForm.district} onChange={e => setProjectForm({ ...projectForm, district: e.target.value })} placeholder="District" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setShowProjectDialog(false)} disabled={projectLoading}>Cancel</Button>
+            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleCreateProject} disabled={projectLoading}>
+              {projectLoading ? 'Creating...' : 'Create Project'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Inline Create Dialog: Invoice ── */}
+      <Dialog open={showInvoiceDialog} onOpenChange={setShowInvoiceDialog}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center"><Receipt className="w-4 h-4 text-emerald-600" /></div>
+              New Invoice for {clientName}
+            </DialogTitle>
+            <DialogDescription>Create an invoice for this client.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Base Amount (UGX) <span className="text-red-500">*</span></Label>
+                <Input type="number" className={`h-9 text-sm ${invoiceErrors.amount ? 'border-red-300' : ''}`} placeholder="0" value={invoiceForm.amount} onChange={e => setInvoiceForm({ ...invoiceForm, amount: e.target.value })} />
+                {invoiceErrors.amount && <p className="text-[10px] text-red-500">{invoiceErrors.amount}</p>}
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Tax Amount (UGX)</Label>
+                <Input type="number" className="h-9 text-sm" placeholder="0" value={invoiceForm.tax_amount} onChange={e => setInvoiceForm({ ...invoiceForm, tax_amount: e.target.value })} />
+              </div>
+            </div>
+            {invoiceTotalPreview > 0 && (
+              <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-between">
+                <span className="text-xs font-medium text-emerald-700">Total</span>
+                <span className="text-sm font-bold text-emerald-800">UGX {invoiceTotalPreview.toLocaleString()}</span>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Status</Label>
+                <Select value={invoiceForm.status} onValueChange={v => setInvoiceForm({ ...invoiceForm, status: v })}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="sent">Sent</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Due Date</Label>
+                <Input type="date" className="h-9 text-sm" value={invoiceForm.due_date} onChange={e => setInvoiceForm({ ...invoiceForm, due_date: e.target.value })} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setShowInvoiceDialog(false)} disabled={invoiceLoading}>Cancel</Button>
+            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleCreateInvoice} disabled={invoiceLoading || !invoiceForm.amount}>
+              {invoiceLoading ? 'Creating...' : 'Create Invoice'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Inline Create Dialog: Document ── */}
+      <Dialog open={showDocumentDialog} onOpenChange={setShowDocumentDialog}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center"><FileText className="w-4 h-4 text-amber-600" /></div>
+              New Document for {clientName}
+            </DialogTitle>
+            <DialogDescription>Register a document for this client.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Document Title <span className="text-red-500">*</span></Label>
+              <Input className={`h-9 text-sm ${docErrors.title ? 'border-red-300' : ''}`} placeholder="e.g. Land Title - Kampala" value={docForm.title} onChange={e => setDocForm({ ...docForm, title: e.target.value })} />
+              {docErrors.title && <p className="text-[10px] text-red-500">{docErrors.title}</p>}
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Document Type</Label>
+              <Select value={docForm.document_type} onValueChange={v => setDocForm({ ...docForm, document_type: v })}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="survey_report">Survey Report</SelectItem>
+                  <SelectItem value="land_title">Land Title</SelectItem>
+                  <SelectItem value="agreement">Agreement</SelectItem>
+                  <SelectItem value="id_copy">ID Copy</SelectItem>
+                  <SelectItem value="correspondence">Correspondence</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Description</Label>
+              <Textarea className="text-sm" rows={2} value={docForm.description} onChange={e => setDocForm({ ...docForm, description: e.target.value })} placeholder="Optional description..." />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setShowDocumentDialog(false)} disabled={docLoading}>Cancel</Button>
+            <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white" onClick={handleCreateDocument} disabled={docLoading}>
+              {docLoading ? 'Creating...' : 'Create Document'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Inline Create Dialog: Message ── */}
+      <Dialog open={showMessageDialog} onOpenChange={setShowMessageDialog}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center"><MessageSquare className="w-4 h-4 text-violet-600" /></div>
+              New Message to {clientName}
+            </DialogTitle>
+            <DialogDescription>Send a message to this client.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Channel</Label>
+                <Select value={msgForm.channel} onValueChange={v => setMsgForm({ ...msgForm, channel: v })}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sms">SMS</SelectItem>
+                    <SelectItem value="email">Email</SelectItem>
+                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                    <SelectItem value="call">Phone Call</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Direction</Label>
+                <Select value={msgForm.direction} onValueChange={v => setMsgForm({ ...msgForm, direction: v })}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="outbound">Outbound</SelectItem>
+                    <SelectItem value="inbound">Inbound</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Subject</Label>
+              <Input className="h-9 text-sm" placeholder="Optional subject" value={msgForm.subject} onChange={e => setMsgForm({ ...msgForm, subject: e.target.value })} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-xs">Message <span className="text-red-500">*</span></Label>
+              <Textarea className={`text-sm ${msgErrors.body ? 'border-red-300' : ''}`} rows={4} placeholder="Type your message..." value={msgForm.body} onChange={e => setMsgForm({ ...msgForm, body: e.target.value })} />
+              {msgErrors.body && <p className="text-[10px] text-red-500">{msgErrors.body}</p>}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setShowMessageDialog(false)} disabled={msgLoading}>Cancel</Button>
+            <Button size="sm" className="bg-violet-600 hover:bg-violet-700 text-white" onClick={handleCreateMessage} disabled={msgLoading}>
+              {msgLoading ? 'Sending...' : 'Send Message'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

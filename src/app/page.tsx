@@ -596,6 +596,8 @@ export default function GWSPlatform() {
               openDetail={(type, data) => { setDetailReturnPage(detailReturnPage); openDetail(type, data) }}
               clients={clients}
               projects={projects}
+              documentsData={documentsData}
+              commsData={commsData}
             />
           ) : (
             renderPage()
