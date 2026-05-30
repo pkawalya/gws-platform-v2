@@ -463,6 +463,7 @@ export default function GWSPlatform() {
     documents: () => refreshWithDashboard(['/api/documents']),
     communications: () => refreshWithDashboard(['/api/communications']),
     approvals: () => refreshWithDashboard(['/api/approvals']),
+    workflows: () => refreshWithDashboard(['/api/workflows']),
   }
 
   const renderPage = () => {
@@ -470,7 +471,7 @@ export default function GWSPlatform() {
       case 'dashboard': return <DashboardPage m={m} dashData={dashData} onNavigate={setPage} openDetail={openDetail} clients={clients} projects={projects} financeData={financeData} eventsData={eventsData} />
       case 'clients': return <ClientsPage clients={clients} search={search} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} onRefresh={pageRefreshMap.clients} onToast={showToast} />
       case 'projects': return <ProjectsPage projects={projects} clients={clients} search={search} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} onRefresh={pageRefreshMap.projects} onToast={showToast} />
-      case 'workflows': return <WorkflowsPage workflows={workflows} openDetail={openDetail} />
+      case 'workflows': return <WorkflowsPage workflows={workflows} openDetail={openDetail} onToast={showToast} onRefresh={() => refreshWithDashboard(['/api/workflows'])} projects={projects} clients={clients} />
       case 'spatial': return <SpatialPage spatial={spatial} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} projects={projects} />
       case 'field-sync': return <FieldSyncPage fieldSync={fieldSync} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} />
       case 'ai': return <AIPage aiData={aiData} openDetail={openDetail} />

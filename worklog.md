@@ -66,3 +66,30 @@ Stage Summary:
 - 8 sample users pre-seeded with appropriate role assignments
 - Full CRUD operations supported through both Next.js API routes and micro-server
 - All API endpoints verified working: /api/users, /api/roles, /api/permissions
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Build dynamic workflows system for GWS Platform V2
+
+Work Log:
+- Analyzed existing project state: Prisma schema with WorkflowDefinition, WorkflowStep, WorkflowInstance, WorkflowTransition models already defined
+- Examined existing read-only WorkflowsPage component and workflows API endpoint
+- Created new API routes: POST/GET /api/workflows, PATCH/DELETE /api/workflows/[id], PUT/POST /api/workflows/[id]/steps, POST/GET /api/workflow-instances, PATCH /api/workflow-instances/[id]
+- Built comprehensive dynamic WorkflowsPage with: workflow template builder, step editor with reorder, launch instance dialog, instance advance/reject/cancel actions, live preview, search, tabs for templates/active/completed
+- Updated main page.tsx to pass onToast, onRefresh, projects, and clients props to WorkflowsPage
+- Added workflow page refresh to pageRefreshMap
+- Updated Python micro-server (micro-server.py) with full workflow CRUD: create/update/delete definitions, bulk step update, create instances, advance/reject/cancel instances
+- Changed Python server from ThreadingMixIn to single-threaded for stability
+- Added auto-restart loop script for server resilience
+- Tested all API endpoints: GET workflows, POST create workflow, POST launch instance, PATCH advance instance
+
+Stage Summary:
+- Full dynamic workflow builder with visual step editor
+- 6 step types: approval, review, notification, data_entry, condition, automated
+- Step properties: name, type, assignee, SLA hours, required flag, auto-assign flag
+- Workflow lifecycle: create template → launch instance → advance through steps → complete
+- Instance actions: approve & advance, reject, cancel
+- Visual step timeline with progress indicators
+- All 3 API layers: Next.js routes, Python micro-server, Prisma models
+- Server running on port 3000 with auto-restart

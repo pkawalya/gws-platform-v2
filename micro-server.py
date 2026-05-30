@@ -42,6 +42,9 @@ dynamic_roles = []
 dynamic_permissions = []
 dynamic_user_roles = []  # { id, user_id, role_id, assigned_by, assigned_at }
 dynamic_role_permissions = []  # { id, role_id, permission_id }
+dynamic_workflow_defs = []  # Workflow definitions with steps
+dynamic_workflow_instances = []  # Workflow instances
+dynamic_workflow_transitions = []  # Workflow transitions
 
 def init_dynamic_data():
     """Initialize users, roles, permissions from cached API data or defaults"""
@@ -309,8 +312,28 @@ def _default_users():
     return users, urs
 
 
+def init_workflow_data():
+    """Initialize workflow definitions from cached API data"""
+    global dynamic_workflow_defs, dynamic_workflow_instances, dynamic_workflow_transitions
+
+    wf_data = api_cache.get("workflows", [])
+    if isinstance(wf_data, list) and len(wf_data) > 0:
+        dynamic_workflow_defs = wf_data
+        for wf in dynamic_workflow_defs:
+            for inst in wf.get("instances", []):
+                inst_copy = copy.deepcopy(inst)
+                inst_copy["workflow_definition_id"] = wf["id"]
+                inst_copy["_wfName"] = wf["name"]
+                inst_copy["_wfSteps"] = wf.get("steps", [])
+                for t in inst_copy.get("transitions", []):
+                    t["workflow_instance_id"] = inst["id"]
+                    dynamic_workflow_transitions.append(t)
+                dynamic_workflow_instances.append(inst_copy)
+
+
 # Initialize dynamic data
 init_dynamic_data()
+init_workflow_data()
 
 # ── Helper: Build enriched user/role objects ──
 def get_enriched_users():
@@ -506,6 +529,36 @@ class GWSHandler(BaseHTTPRequestHandler):
                 self.send_json(new_role, 201)
             return
         
+        # ── Workflow Definitions CRUD ──
+        if path == "/api/workflows":
+            new_wf = self._create_workflow(body_json)
+            if isinstance(new_wf, dict) and "error" in new_wf:
+                self.send_json(new_wf, 409)
+            else:
+                self.send_json(new_wf, 201)
+            return
+        
+        # ── Workflow Instances CRUD ──
+        if path == "/api/workflow-instances":
+            new_inst = self._create_workflow_instance(body_json)
+            if isinstance(new_inst, dict) and "error" in new_inst:
+                self.send_json(new_inst, 400)
+            else:
+                self.send_json(new_inst, 201)
+            return
+        
+        # ── Workflow Steps Bulk Update ──
+        if path.startswith("/api/workflows/") and path.endswith("/steps"):
+            parts = path.strip("/").split("/")
+            if len(parts) >= 4:
+                wf_id = parts[2]
+                result = self._update_workflow_steps(wf_id, body_json)
+                if isinstance(result, dict) and "error" in result:
+                    self.send_json(result, 404)
+                else:
+                    self.send_json(result, 201)
+                return
+        
         # ── Existing POST endpoints ──
         if path == "/api/clients":
             self.send_json({"message": "Client created", "data": body_json}, 201)
@@ -572,6 +625,24 @@ class GWSHandler(BaseHTTPRequestHandler):
                     self.send_json({"error": "Role not found"}, 404)
                 return
             
+            # ── Workflow Definitions PATCH ──
+            if endpoint == "workflows":
+                updated = self._update_workflow(item_id, body_json)
+                if isinstance(updated, dict) and "error" in updated:
+                    self.send_json(updated, 404)
+                else:
+                    self.send_json(updated)
+                return
+            
+            # ── Workflow Instances PATCH (advance/cancel/reject) ──
+            if endpoint == "workflow-instances":
+                result = self._update_workflow_instance(item_id, body_json)
+                if isinstance(result, dict) and "error" in result:
+                    self.send_json(result, 400)
+                else:
+                    self.send_json(result)
+                return
+            
             # ── Existing PATCH endpoints ──
             try:
                 numeric_id = int(item_id)
@@ -627,6 +698,15 @@ class GWSHandler(BaseHTTPRequestHandler):
                 result = self._delete_role(item_id)
                 if isinstance(result, dict) and "error" in result:
                     self.send_json(result, 403)
+                else:
+                    self.send_json({"success": True})
+                return
+            
+            # ── Workflow Definitions DELETE ──
+            if endpoint == "workflows":
+                result = self._delete_workflow(item_id)
+                if isinstance(result, dict) and "error" in result:
+                    self.send_json(result, 409)
                 else:
                     self.send_json({"success": True})
                 return
@@ -787,6 +867,276 @@ class GWSHandler(BaseHTTPRequestHandler):
         dynamic_user_roles = [ur for ur in dynamic_user_roles if ur["role_id"] != role_id]
         return True
     
+    # ── Workflow CRUD Methods ──
+    
+    def _create_workflow(self, body):
+        global dynamic_workflow_defs
+        name = body.get("name", "")
+        if not name:
+            return {"error": "Name is required"}
+        
+        slug = name.lower().replace(" ", "-").replace("_", "-")
+        # Remove non-alphanumeric
+        slug = ''.join(c for c in slug if c.isalnum() or c == '-')
+        
+        if any(w["slug"] == slug for w in dynamic_workflow_defs):
+            return {"error": "A workflow with this name already exists"}
+        
+        wf_id = f"wf-{slug}"
+        now = datetime.now(timezone.utc).isoformat()
+        
+        steps_data = body.get("steps", [])
+        steps = []
+        for idx, step in enumerate(steps_data):
+            step_slug = step.get("name", "").lower().replace(" ", "-").replace("_", "-")
+            step_slug = ''.join(c for c in step_slug if c.isalnum() or c == '-')
+            steps.append({
+                "id": str(uuid.uuid4()),
+                "workflow_definition_id": wf_id,
+                "name": step.get("name", ""),
+                "slug": step_slug,
+                "step_order": idx + 1,
+                "step_type": step.get("step_type", "approval"),
+                "assignee_type": step.get("assignee_type", "role"),
+                "assignee_id": step.get("assignee_id"),
+                "auto_assign": step.get("auto_assign", False),
+                "is_required": step.get("is_required", True),
+                "sla_hours": step.get("sla_hours"),
+                "config": step.get("config"),
+                "created_at": now,
+                "updated_at": now,
+            })
+        
+        wf = {
+            "id": wf_id,
+            "organization_id": None,
+            "name": name,
+            "slug": slug,
+            "description": body.get("description"),
+            "version": 1,
+            "is_active": body.get("is_active", True),
+            "trigger_type": body.get("trigger_type", "manual"),
+            "trigger_config": body.get("trigger_config"),
+            "steps": steps,
+            "instances": [],
+            "created_at": now,
+            "updated_at": now,
+        }
+        
+        dynamic_workflow_defs.append(wf)
+        return wf
+    
+    def _update_workflow(self, wf_id, body):
+        wf = next((w for w in dynamic_workflow_defs if w["id"] == wf_id), None)
+        if not wf:
+            return {"error": "Workflow not found"}
+        
+        now = datetime.now(timezone.utc).isoformat()
+        for key in ["name", "description", "trigger_type", "trigger_config", "is_active", "version"]:
+            if key in body:
+                wf[key] = body[key]
+        wf["updated_at"] = now
+        return wf
+    
+    def _update_workflow_steps(self, wf_id, body):
+        wf = next((w for w in dynamic_workflow_defs if w["id"] == wf_id), None)
+        if not wf:
+            return {"error": "Workflow not found"}
+        
+        steps_data = body.get("steps", [])
+        now = datetime.now(timezone.utc).isoformat()
+        steps = []
+        for idx, step in enumerate(steps_data):
+            step_slug = step.get("name", "").lower().replace(" ", "-").replace("_", "-")
+            step_slug = ''.join(c for c in step_slug if c.isalnum() or c == '-')
+            steps.append({
+                "id": step.get("id") or str(uuid.uuid4()),
+                "workflow_definition_id": wf_id,
+                "name": step.get("name", ""),
+                "slug": step_slug,
+                "step_order": idx + 1,
+                "step_type": step.get("step_type", "approval"),
+                "assignee_type": step.get("assignee_type", "role"),
+                "assignee_id": step.get("assignee_id"),
+                "auto_assign": step.get("auto_assign", False),
+                "is_required": step.get("is_required", True),
+                "sla_hours": step.get("sla_hours"),
+                "config": step.get("config"),
+                "created_at": step.get("created_at", now),
+                "updated_at": now,
+            })
+        
+        wf["steps"] = steps
+        wf["updated_at"] = now
+        return steps
+    
+    def _delete_workflow(self, wf_id):
+        global dynamic_workflow_defs, dynamic_workflow_instances
+        wf = next((w for w in dynamic_workflow_defs if w["id"] == wf_id), None)
+        if not wf:
+            return {"error": "Workflow not found"}
+        
+        active = [i for i in dynamic_workflow_instances if i["workflow_definition_id"] == wf_id and i.get("status") in ("pending", "in_progress")]
+        if active:
+            return {"error": "Cannot delete workflow with active instances"}
+        
+        dynamic_workflow_defs = [w for w in dynamic_workflow_defs if w["id"] != wf_id]
+        dynamic_workflow_instances = [i for i in dynamic_workflow_instances if i["workflow_definition_id"] != wf_id]
+        return True
+    
+    def _create_workflow_instance(self, body):
+        global dynamic_workflow_instances, dynamic_workflow_transitions
+        wf_def_id = body.get("workflow_definition_id", "")
+        subject_type = body.get("subject_type", "")
+        subject_id = body.get("subject_id", "")
+        
+        if not wf_def_id or not subject_type or not subject_id:
+            return {"error": "workflow_definition_id, subject_type, and subject_id are required"}
+        
+        wf = next((w for w in dynamic_workflow_defs if w["id"] == wf_def_id), None)
+        if not wf:
+            return {"error": "Workflow definition not found"}
+        
+        if not wf.get("is_active", True):
+            return {"error": "Cannot start an inactive workflow"}
+        
+        if not wf.get("steps"):
+            return {"error": "Workflow has no steps defined"}
+        
+        first_step = wf["steps"][0]
+        inst_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc).isoformat()
+        
+        inst = {
+            "id": inst_id,
+            "workflow_definition_id": wf_def_id,
+            "organization_id": body.get("organization_id"),
+            "branch_id": body.get("branch_id"),
+            "subject_type": subject_type,
+            "subject_id": subject_id,
+            "status": "pending",
+            "current_step_id": first_step["id"],
+            "current_step_order": first_step["step_order"],
+            "started_at": now,
+            "completed_at": None,
+            "cancelled_at": None,
+            "cancellation_reason": None,
+            "metadata": body.get("metadata"),
+            "transitions": [],
+            "workflowDefinition": {"id": wf["id"], "name": wf["name"], "steps": wf["steps"]},
+            "created_at": now,
+            "updated_at": now,
+        }
+        
+        dynamic_workflow_instances.append(inst)
+        
+        # Also add to workflow's instances
+        wf["instances"].append({
+            "id": inst_id,
+            "workflow_definition_id": wf_def_id,
+            "subject_type": subject_type,
+            "subject_id": subject_id,
+            "status": "pending",
+            "current_step_id": first_step["id"],
+            "current_step_order": first_step["step_order"],
+            "started_at": now,
+            "metadata": body.get("metadata"),
+            "transitions": [],
+        })
+        
+        return inst
+    
+    def _update_workflow_instance(self, inst_id, body):
+        global dynamic_workflow_instances, dynamic_workflow_transitions
+        
+        inst = next((i for i in dynamic_workflow_instances if i["id"] == inst_id), None)
+        if not inst:
+            return {"error": "Instance not found"}
+        
+        action = body.get("action", "")
+        now = datetime.now(timezone.utc).isoformat()
+        
+        if action == "cancel":
+            inst["status"] = "cancelled"
+            inst["cancelled_at"] = now
+            inst["cancellation_reason"] = body.get("cancellation_reason")
+            inst["updated_at"] = now
+            return inst
+        
+        if action in ("advance", "transition"):
+            if inst["status"] in ("completed", "cancelled"):
+                return {"error": "Cannot advance a completed or cancelled workflow"}
+            
+            wf_def = inst.get("workflowDefinition", {})
+            steps = wf_def.get("steps", inst.get("_wfSteps", []))
+            current_step = next((s for s in steps if s["id"] == inst["current_step_id"]), None)
+            
+            to_step_id = body.get("to_step_id")
+            if to_step_id:
+                next_step = next((s for s in steps if s["id"] == to_step_id), None)
+                if not next_step:
+                    return {"error": "Target step not found"}
+            else:
+                next_step = next((s for s in steps if s["step_order"] == (current_step["step_order"] + 1 if current_step else 1)), None) if current_step else None
+            
+            # Create transition
+            transition = {
+                "id": str(uuid.uuid4()),
+                "workflow_instance_id": inst_id,
+                "from_step_id": inst["current_step_id"],
+                "to_step_id": next_step["id"] if next_step else inst["current_step_id"],
+                "action": "approved" if action == "advance" else "transitioned",
+                "performed_by": body.get("performed_by"),
+                "notes": body.get("notes"),
+                "performed_at": now,
+            }
+            
+            if "transitions" not in inst:
+                inst["transitions"] = []
+            inst["transitions"].append(transition)
+            
+            # Add fromStep/toStep names to transition
+            from_step = next((s for s in steps if s["id"] == inst["current_step_id"]), None)
+            transition["fromStep"] = {"id": from_step["id"], "name": from_step["name"]} if from_step else None
+            transition["toStep"] = {"id": next_step["id"], "name": next_step["name"]} if next_step else None
+            
+            is_completed = not next_step or (current_step and current_step.get("step_order") == len(steps) and not to_step_id)
+            
+            if next_step:
+                inst["current_step_id"] = next_step["id"]
+                inst["current_step_order"] = next_step["step_order"]
+            
+            inst["status"] = "completed" if is_completed else "in_progress"
+            if is_completed:
+                inst["completed_at"] = now
+            inst["updated_at"] = now
+            
+            return inst
+        
+        if action == "reject":
+            transition = {
+                "id": str(uuid.uuid4()),
+                "workflow_instance_id": inst_id,
+                "from_step_id": inst["current_step_id"],
+                "to_step_id": inst["current_step_id"],
+                "action": "rejected",
+                "performed_by": body.get("performed_by"),
+                "notes": body.get("notes"),
+                "performed_at": now,
+            }
+            
+            if "transitions" not in inst:
+                inst["transitions"] = []
+            inst["transitions"].append(transition)
+            
+            inst["status"] = "cancelled"
+            inst["cancelled_at"] = now
+            inst["cancellation_reason"] = body.get("notes", "Rejected")
+            inst["updated_at"] = now
+            return inst
+        
+        return {"error": "Unknown action"}
+    
     # ── API GET Handler ──
     
     def handle_api_get(self, path):
@@ -808,7 +1158,6 @@ class GWSHandler(BaseHTTPRequestHandler):
             # ── Users ──
             if endpoint == "users":
                 if len(parts) >= 3:
-                    # Get single user
                     user_id = parts[2]
                     enriched = get_enriched_users()
                     user = next((u for u in enriched if u["id"] == user_id), None)
@@ -832,6 +1181,40 @@ class GWSHandler(BaseHTTPRequestHandler):
                         self.send_json({"error": "Role not found"}, 404)
                 else:
                     self.send_json(get_enriched_roles())
+                return
+            
+            # ── Workflow Definitions ──
+            if endpoint == "workflows":
+                if len(parts) >= 4 and parts[3] == "steps":
+                    # /api/workflows/:id/steps
+                    wf_id = parts[2]
+                    wf = next((w for w in dynamic_workflow_defs if w["id"] == wf_id), None)
+                    if wf:
+                        self.send_json(wf.get("steps", []))
+                    else:
+                        self.send_json({"error": "Workflow not found"}, 404)
+                elif len(parts) >= 3:
+                    wf_id = parts[2]
+                    wf = next((w for w in dynamic_workflow_defs if w["id"] == wf_id), None)
+                    if wf:
+                        self.send_json(wf)
+                    else:
+                        self.send_json({"error": "Workflow not found"}, 404)
+                else:
+                    self.send_json(dynamic_workflow_defs)
+                return
+            
+            # ── Workflow Instances ──
+            if endpoint == "workflow-instances":
+                if len(parts) >= 3:
+                    inst_id = parts[2]
+                    inst = next((i for i in dynamic_workflow_instances if i["id"] == inst_id), None)
+                    if inst:
+                        self.send_json(inst)
+                    else:
+                        self.send_json({"error": "Instance not found"}, 404)
+                else:
+                    self.send_json(dynamic_workflow_instances)
                 return
         
         # ── Existing endpoints with numeric IDs ──
@@ -912,12 +1295,13 @@ class GWSHandler(BaseHTTPRequestHandler):
         except ConnectionResetError:
             pass
 
-class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
-    daemon_threads = True
+class SingleHTTPServer(HTTPServer):
+    """Single-threaded HTTP server - more stable in constrained environments"""
     allow_reuse_address = True
+    timeout = 30
 
 if __name__ == "__main__":
-    server = ThreadedHTTPServer(("0.0.0.0", PORT), GWSHandler)
+    server = SingleHTTPServer(("0.0.0.0", PORT), GWSHandler)
     print(f"GWS Platform V2 running on http://0.0.0.0:{PORT}")
     sys.stdout.flush()
     try:
