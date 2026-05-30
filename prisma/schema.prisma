@@ -509,3 +509,84 @@ model AiCallLog {
   @@index([created_at])
   @@map("ai_call_logs")
 }
+
+// ── User & Role Management ──
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  avatar_url    String?
+  phone         String?
+  job_title     String?
+  department    String?
+  status        String    @default("active")
+  last_login_at DateTime?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  userRoles UserRole[]
+
+  @@index([email])
+  @@index([status])
+  @@map("users")
+}
+
+model Role {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  display_name String
+  description  String?  @db.Text
+  color        String   @default("#10b981")
+  is_system    Boolean  @default(false)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  module      String
+  description String?
+  created_at  DateTime @default(now())
+
+  rolePermissions RolePermission[]
+
+  @@index([module])
+  @@map("permissions")
+}
+
+model UserRole {
+  id          String   @id @default(cuid())
+  user_id     String
+  role_id     String
+  assigned_by String?
+  assigned_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, role_id])
+  @@index([user_id])
+  @@index([role_id])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  id            String   @id @default(cuid())
+  role_id       String
+  permission_id String
+
+  role       Role       @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+
+  @@unique([role_id, permission_id])
+  @@index([role_id])
+  @@index([permission_id])
+  @@map("role_permissions")
+}

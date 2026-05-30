@@ -24,7 +24,7 @@ TEMP_PID=$!
 sleep 5
 
 # Fetch all API endpoints
-for ep in dashboard clients projects workflows spatial field-sync ai finance documents communications approvals events organizations reports; do
+for ep in dashboard clients projects workflows spatial field-sync ai finance documents communications approvals events organizations reports users roles permissions; do
     curl -s --max-time 5 http://127.0.0.1:3099/api/$ep > api-data/$ep.json 2>/dev/null || echo "{}" > api-data/$ep.json
 done
 

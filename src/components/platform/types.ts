@@ -1,6 +1,6 @@
 // GWS Platform V2 — Type Definitions
 
-export type PageId = 'dashboard' | 'clients' | 'projects' | 'workflows' | 'spatial' | 'field-sync' | 'ai' | 'finance' | 'documents' | 'communications' | 'approvals' | 'audit' | 'organizations' | 'reports' | 'settings'
+export type PageId = 'dashboard' | 'clients' | 'projects' | 'workflows' | 'spatial' | 'field-sync' | 'ai' | 'finance' | 'documents' | 'communications' | 'approvals' | 'audit' | 'organizations' | 'reports' | 'settings' | 'role-permissions'
 
 export interface ClientRecord {
   id: number

@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator'
 // Sheet and ScrollArea removed - using full page detail view
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { MapPin, Search, Database, LayoutDashboard, Users, ShieldCheck, Receipt, GitBranch, Smartphone, Layers, Brain, ScrollText, MessageSquare, FileText, Building2, BarChart2, Moon, Sun, Command, Settings } from 'lucide-react'
+import { MapPin, Search, Database, LayoutDashboard, Users, ShieldCheck, Receipt, GitBranch, Smartphone, Layers, Brain, ScrollText, MessageSquare, FileText, Building2, BarChart2, Moon, Sun, Command, Settings, Shield } from 'lucide-react'
 import { toast } from 'sonner'
 
 // Platform components
@@ -32,6 +32,7 @@ import { AuditTrailPage } from '@/components/platform/audit-trail-page'
 import { OrganizationsPage } from '@/components/platform/organizations-page'
 import { ReportsPage } from '@/components/platform/reports-page'
 import { SettingsPage } from '@/components/platform/settings-page'
+import { RolePermissionsPage } from '@/components/platform/role-permissions-page'
 import { NotificationCenter } from '@/components/platform/notification-center'
 import { CommandPalette } from '@/components/platform/command-palette'
 import { DetailPage } from '@/components/platform/detail-page'
@@ -405,6 +406,7 @@ export default function GWSPlatform() {
     { id: 'communications', label: 'Messages & SMS', icon: MessageSquare, group: 'Communications', badge: commsData?.metrics?.total },
     { id: 'documents', label: 'Document Vault', icon: FileText, group: 'Documents', badge: documentsData?.metrics?.total },
     { id: 'organizations', label: 'Organizations', icon: Building2, group: 'System' },
+    { id: 'role-permissions', label: 'Roles & Permissions', icon: Shield, group: 'System' },
     { id: 'reports', label: 'Reports', icon: BarChart2, group: 'Intelligence' },
     { id: 'settings', label: 'Settings', icon: Settings, group: 'System' },
   ]
@@ -479,6 +481,7 @@ export default function GWSPlatform() {
       case 'audit': return <AuditTrailPage eventsData={eventsData} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} />
       case 'organizations': return <OrganizationsPage orgsData={orgsData} openDetail={openDetail} />
       case 'reports': return <ReportsPage reportsData={reportsData} openDetail={openDetail} dashData={dashData} />
+      case 'role-permissions': return <RolePermissionsPage onToast={showToast} />
       case 'settings': return <SettingsPage darkMode={dark} toggleDarkMode={toggleDark} />
       default: return null
     }
