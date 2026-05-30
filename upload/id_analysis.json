@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "```json\n{\n  \"surname\": \"KAWALYA\",\n  \"givenName\": \"PAUL\",\n  \"otherName\": null,\n  \"nationality\": \"UGA\",\n  \"sex\": \"M\",\n  \"dateOfBirth\": \"10.10.1989\",\n  \"idNumber\": \"CM89052102YCJF\",\n  \"issueDate\": null,\n  \"expiryDate\": \"19.10.2024\",\n  \"districtOfBirth\": null,\n  \"village\": null,\n  \"parish\": null,\n  \"subcounty\": null,\n  \"county\": null,\n  \"district\": null,\n  \"region\": null\n}\n```",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1780309077,
+  "id": "2026060118175359afc714d9a14e16",
+  "model": "glm-4.6v",
+  "object": "chat.completion",
+  "request_id": "2026060118175359afc714d9a14e16",
+  "usage": {
+    "completion_tokens": 144,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 478,
+    "prompt_tokens_details": {
+      "cached_tokens": 4
+    },
+    "total_tokens": 622
+  }
+}
