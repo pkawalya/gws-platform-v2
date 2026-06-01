@@ -20,6 +20,7 @@ import {
   Users, Shield, Key, Plus, MoreHorizontal, Search, Edit2, Trash2, UserPlus,
   ShieldCheck, CheckCircle2, XCircle, AlertTriangle, ChevronDown, Lock,
   Mail, Phone, Building2, Briefcase, Clock, ArrowRight, Copy, Eye,
+  MapPin, Globe2, TreePine, Map,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -54,6 +55,11 @@ interface UserRole {
   role: Role
 }
 
+interface UserRegion {
+  id: string
+  region: { id: string; name: string; slug: string; level: string; code: string }
+}
+
 interface User {
   id: string
   email: string
@@ -67,6 +73,7 @@ interface User {
   created_at: string
   updated_at: string
   userRoles: UserRole[]
+  userRegions: UserRegion[]
 }
 
 interface RolePermissionsPageProps {
@@ -135,14 +142,23 @@ export function RolePermissionsPage({ onToast }: RolePermissionsPageProps) {
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([])
   const [selectedPermIds, setSelectedPermIds] = useState<string[]>([])
 
+  // Region states
+  const [regions, setRegions] = useState<any[]>([])
+  const [regionLevels, setRegionLevels] = useState<string[]>([])
+  const [selectedRegionIds, setSelectedRegionIds] = useState<string[]>([])
+  const [assignRegionDialog, setAssignRegionDialog] = useState<{ open: boolean; user: User | null }>({ open: false, user: null })
+  const [createRegionDialog, setCreateRegionDialog] = useState(false)
+  const [regionForm, setRegionForm] = useState({ name: '', slug: '', level: 'district', code: '', parent_id: '' })
+
   // ── Data Fetching ──
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const [usersRes, rolesRes, permsRes] = await Promise.all([
+      const [usersRes, rolesRes, permsRes, regionsRes] = await Promise.all([
         fetch('/api/users'),
         fetch('/api/roles'),
         fetch('/api/permissions'),
+        fetch('/api/regions'),
       ])
       if (usersRes.ok) setUsers(await usersRes.json())
       if (rolesRes.ok) {
@@ -153,6 +169,11 @@ export function RolePermissionsPage({ onToast }: RolePermissionsPageProps) {
         const pData = await permsRes.json()
         setPermissions(pData.permissions || [])
         setPermModules(pData.modules || [])
+      }
+      if (regionsRes.ok) {
+        const rgData = await regionsRes.json()
+        setRegions(rgData.regions || [])
+        setRegionLevels(rgData.levels || [])
       }
     } catch (e) {
       console.error('Fetch error:', e)
@@ -372,6 +393,50 @@ export function RolePermissionsPage({ onToast }: RolePermissionsPageProps) {
     }
   }
 
+  // ── Region Handlers ──
+  const handleAssignRegions = async () => {
+    if (!assignRegionDialog.user) return
+    try {
+      const res = await fetch('/api/regions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'assign', user_id: assignRegionDialog.user.id, region_ids: selectedRegionIds }),
+      })
+      if (!res.ok) { onToast('error', 'Failed to assign regions'); return }
+      onToast('success', `Assigned ${selectedRegionIds.length} region(s) to ${assignRegionDialog.user.name}`)
+      setAssignRegionDialog({ open: false, user: null })
+      fetchData()
+    } catch { onToast('error', 'Failed to assign regions') }
+  }
+
+  const handleCreateRegion = async () => {
+    try {
+      const res = await fetch('/api/regions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create', ...regionForm }),
+      })
+      if (!res.ok) { onToast('error', 'Failed to create region'); return }
+      onToast('success', `Region "${regionForm.name}" created`)
+      setCreateRegionDialog(false)
+      setRegionForm({ name: '', slug: '', level: 'district', code: '', parent_id: '' })
+      fetchData()
+    } catch { onToast('error', 'Failed to create region') }
+  }
+
+  const handleDeleteRegion = async (id: string) => {
+    try {
+      const res = await fetch('/api/regions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', id }),
+      })
+      if (!res.ok) { onToast('error', 'Failed to delete region'); return }
+      onToast('success', 'Region deleted')
+      fetchData()
+    } catch { onToast('error', 'Failed to delete region') }
+  }
+
   // ── Filtered Data ──
   const filteredUsers = users.filter(u =>
     u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -448,6 +513,9 @@ export function RolePermissionsPage({ onToast }: RolePermissionsPageProps) {
             <TabsTrigger value="permissions" className="gap-1.5 text-xs">
               <Key className="w-3.5 h-3.5" /> Permissions
             </TabsTrigger>
+            <TabsTrigger value="regions" className="gap-1.5 text-xs">
+              <MapPin className="w-3.5 h-3.5" /> Regions
+            </TabsTrigger>
           </TabsList>
           <div className="flex items-center gap-2">
             <div className="relative">
@@ -489,6 +557,7 @@ export function RolePermissionsPage({ onToast }: RolePermissionsPageProps) {
                     <TableHead className="text-xs hidden md:table-cell">Job Title</TableHead>
                     <TableHead className="text-xs hidden lg:table-cell">Department</TableHead>
                     <TableHead className="text-xs">Roles</TableHead>
+                    <TableHead className="text-xs hidden md:table-cell">Regions</TableHead>
                     <TableHead className="text-xs">Status</TableHead>
                     <TableHead className="text-xs hidden sm:table-cell">Last Login</TableHead>
                     <TableHead className="w-10" />
@@ -544,6 +613,22 @@ export function RolePermissionsPage({ onToast }: RolePermissionsPageProps) {
                               )}
                             </div>
                           </TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            <div className="flex flex-wrap gap-1">
+                              {(!user.userRegions || user.userRegions.length === 0) ? (
+                                <span className="text-xs text-muted-foreground italic">All regions</span>
+                              ) : (
+                                user.userRegions.slice(0, 3).map(ur => (
+                                  <Badge key={ur.id} variant="outline" className="text-[10px] border-emerald-200 bg-emerald-50 text-emerald-700">
+                                    <MapPin className="w-2.5 h-2.5 mr-0.5" />{ur.region.name}
+                                  </Badge>
+                                ))
+                              )}
+                              {(user.userRegions?.length || 0) > 3 && (
+                                <Badge variant="outline" className="text-[10px]">+{user.userRegions.length - 3}</Badge>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>
                             <Badge variant="outline" className={`text-[10px] ${statusStyle.color} ${statusStyle.bg}`}>
                               <div className={`w-1.5 h-1.5 rounded-full mr-1 ${user.status === 'active' ? 'bg-emerald-500' : user.status === 'suspended' ? 'bg-red-500' : 'bg-slate-400'}`} />
@@ -566,6 +651,12 @@ export function RolePermissionsPage({ onToast }: RolePermissionsPageProps) {
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => openAssignRoles(user)}>
                                   <Shield className="w-3.5 h-3.5 mr-2" /> Assign Roles
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => {
+                                  setSelectedRegionIds(user.userRegions?.map(ur => ur.region.id) || [])
+                                  setAssignRegionDialog({ open: true, user })
+                                }}>
+                                  <MapPin className="w-3.5 h-3.5 mr-2" /> Assign Regions
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => setDeleteDialog({ open: true, type: 'user', item: user })}>
@@ -723,6 +814,112 @@ export function RolePermissionsPage({ onToast }: RolePermissionsPageProps) {
                 </Card>
               )
             })}
+          </div>
+        </TabsContent>
+
+        {/* ══════════════ REGIONS TAB ══════════════ */}
+        <TabsContent value="regions" className="mt-4">
+          <div className="space-y-4">
+            {/* Stats */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { label: 'Total Regions', value: regions.length, icon: Globe2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                { label: 'Countries', value: regions.filter(r => r.level === 'country').length, icon: Globe2, color: 'text-blue-600', bg: 'bg-blue-50' },
+                { label: 'Districts', value: regions.filter(r => r.level === 'district').length, icon: Map, color: 'text-violet-600', bg: 'bg-violet-50' },
+                { label: 'Users Assigned', value: users.filter(u => u.userRegions && u.userRegions.length > 0).length, icon: Users, color: 'text-amber-600', bg: 'bg-amber-50' },
+              ].map(stat => (
+                <Card key={stat.label} className="border-0 shadow-sm">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-lg ${stat.bg} flex items-center justify-center`}>
+                      <stat.icon className={`w-5 h-5 ${stat.color}`} />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{stat.value}</p>
+                      <p className="text-[11px] text-muted-foreground uppercase tracking-wide">{stat.label}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Add Region Button */}
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">Manage geographic regions for data access control</p>
+              <Button size="sm" className="h-9 gap-1.5" onClick={() => setCreateRegionDialog(true)}>
+                <Plus className="w-3.5 h-3.5" /> Add Region
+              </Button>
+            </div>
+
+            {/* Region Tree */}
+            {(() => {
+              const topLevel = regions.filter(r => !r.parent_id || r.parent_id === null)
+              const buildTree = (parentId: string) => regions.filter(r => r.parent_id === parentId)
+              return (
+                <div className="space-y-3">
+                  {topLevel.length === 0 ? (
+                    <Card className="border-0 shadow-sm">
+                      <CardContent className="py-12 text-center text-muted-foreground">
+                        <Globe2 className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                        <p className="text-sm">No regions defined yet</p>
+                      </CardContent>
+                    </Card>
+                  ) : topLevel.map(region => {
+                    const children = buildTree(region.id)
+                    const levelColors: Record<string, string> = {
+                      country: 'border-blue-200 bg-blue-50 text-blue-700',
+                      district: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+                      sub_county: 'border-violet-200 bg-violet-50 text-violet-700',
+                      parish: 'border-amber-200 bg-amber-50 text-amber-700',
+                      village: 'border-slate-200 bg-slate-50 text-slate-700',
+                    }
+                    const levelStyle = levelColors[region.level] || levelColors.district
+                    return (
+                      <Card key={region.id} className="border-0 shadow-sm overflow-hidden">
+                        <div className={`px-4 py-3 border-l-4 ${levelStyle.split(' ').slice(0, 1).join(' ')} ${levelStyle.split(' ').slice(2).join(' ')}`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <Globe2 className="w-5 h-5" />
+                              <div>
+                                <p className="text-sm font-semibold">{region.name}</p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <Badge className={`text-[9px] ${levelStyle}`}>{region.level}</Badge>
+                                  {region.code && <span className="text-[10px] font-mono opacity-60">{region.code}</span>}
+                                  <span className="text-[10px] opacity-60">{region._count?.userRegions || 0} user(s)</span>
+                                </div>
+                              </div>
+                            </div>
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600" onClick={() => handleDeleteRegion(region.id)}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                        {children.length > 0 && (
+                          <div className="pl-8 pr-4 py-2 space-y-1 bg-slate-50/50">
+                            {children.map(child => {
+                              const childStyle = levelColors[child.level] || levelColors.district
+                              return (
+                                <div key={child.id} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-white transition-colors">
+                                  <div className="flex items-center gap-2">
+                                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                                    <span className="text-sm">{child.name}</span>
+                                    <Badge className={`text-[9px] ${childStyle}`}>{child.level}</Badge>
+                                    {child.code && <span className="text-[10px] font-mono text-slate-400">{child.code}</span>}
+                                    <span className="text-[10px] text-slate-400">{child._count?.userRegions || 0} user(s)</span>
+                                  </div>
+                                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-300 hover:text-red-500" onClick={() => handleDeleteRegion(child.id)}>
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </Card>
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </div>
         </TabsContent>
       </Tabs>
@@ -1147,6 +1344,143 @@ export function RolePermissionsPage({ onToast }: RolePermissionsPageProps) {
             <Button variant="destructive" size="sm" onClick={deleteDialog.type === 'user' ? handleDeleteUser : handleDeleteRole}>
               Delete {deleteDialog.type === 'user' ? 'User' : 'Role'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══════════════ ASSIGN REGIONS DIALOG ══════════════ */}
+      <Dialog open={assignRegionDialog.open} onOpenChange={(open) => setAssignRegionDialog(prev => ({ ...prev, open }))}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-emerald-600" />
+              Assign Regions to {assignRegionDialog.user?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Control which geographic regions this user can access. Users without assigned regions can access all data.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2 space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Select regions this user should be restricted to. Leave empty for full access.
+            </p>
+            <div className="max-h-72 overflow-y-auto space-y-1">
+              {regions.map(region => {
+                const children = regions.filter(r => r.parent_id === region.id)
+                if (region.parent_id) return null // shown under parent
+                const isSelected = selectedRegionIds.includes(region.id)
+                const allChildIds = children.map(c => c.id)
+                const allChildrenSelected = allChildIds.length > 0 && allChildIds.every(id => selectedRegionIds.includes(id))
+                return (
+                  <div key={region.id} className="space-y-1">
+                    <label className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                      isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:border-slate-300'
+                    }`}>
+                      <input type="checkbox" className="sr-only" checked={isSelected} onChange={() => {
+                        setSelectedRegionIds(prev => isSelected ? prev.filter(id => id !== region.id) : [...prev, region.id])
+                      }} />
+                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${isSelected ? 'bg-emerald-600 border-emerald-600' : 'border-slate-300'}`}>
+                        {isSelected && <CheckCircle2 className="w-3 h-3 text-white" />}
+                      </div>
+                      <Globe2 className={`w-4 h-4 ${isSelected ? 'text-emerald-600' : 'text-slate-400'}`} />
+                      <span className="text-sm font-medium">{region.name}</span>
+                      <Badge variant="outline" className="text-[9px] ml-auto">{region.level}</Badge>
+                    </label>
+                    {children.length > 0 && (
+                      <div className="ml-8 space-y-1">
+                        {children.map(child => {
+                          const childSelected = selectedRegionIds.includes(child.id)
+                          return (
+                            <label key={child.id} className={`flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition-colors text-sm ${
+                              childSelected ? 'border-emerald-200 bg-emerald-50/50' : 'border-slate-100 hover:border-slate-200'
+                            }`}>
+                              <input type="checkbox" className="sr-only" checked={childSelected} onChange={() => {
+                                setSelectedRegionIds(prev => childSelected ? prev.filter(id => id !== child.id) : [...prev, child.id])
+                              }} />
+                              <div className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center ${childSelected ? 'bg-emerald-600 border-emerald-600' : 'border-slate-300'}`}>
+                                {childSelected && <CheckCircle2 className="w-2.5 h-2.5 text-white" />}
+                              </div>
+                              <MapPin className={`w-3.5 h-3.5 ${childSelected ? 'text-emerald-500' : 'text-slate-300'}`} />
+                              <span className="text-xs">{child.name}</span>
+                              {child.code && <span className="text-[10px] font-mono text-slate-400">{child.code}</span>}
+                            </label>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            {selectedRegionIds.length > 0 && (
+              <p className="text-xs text-emerald-600 font-medium">{selectedRegionIds.length} region(s) selected</p>
+            )}
+            {selectedRegionIds.length === 0 && (
+              <p className="text-xs text-amber-600">No regions selected — user will have access to all data</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setAssignRegionDialog({ open: false, user: null })}>Cancel</Button>
+            <Button size="sm" onClick={handleAssignRegions}>Save Regions</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══════════════ CREATE REGION DIALOG ══════════════ */}
+      <Dialog open={createRegionDialog} onOpenChange={setCreateRegionDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Globe2 className="w-5 h-5 text-emerald-600" />
+              Add New Region
+            </DialogTitle>
+            <DialogDescription>
+              Create a new geographic region for data access control.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-xs">Region Name *</Label>
+                <Input value={regionForm.name} onChange={e => setRegionForm(p => ({ ...p, name: e.target.value, slug: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '-') }))} placeholder="e.g. Mukono" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Slug</Label>
+                <Input value={regionForm.slug} onChange={e => setRegionForm(p => ({ ...p, slug: e.target.value }))} placeholder="auto-generated" className="font-mono text-xs" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-xs">Level *</Label>
+                <Select value={regionForm.level} onValueChange={v => setRegionForm(p => ({ ...p, level: v }))}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {regionLevels.map(l => <SelectItem key={l} value={l}>{l.charAt(0).toUpperCase() + l.slice(1).replace('_', ' ')}</SelectItem>)}
+                    {regionLevels.length === 0 && ['country', 'district', 'sub_county', 'parish', 'village'].map(l => (
+                      <SelectItem key={l} value={l}>{l.charAt(0).toUpperCase() + l.slice(1).replace('_', ' ')}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Code</Label>
+                <Input value={regionForm.code} onChange={e => setRegionForm(p => ({ ...p, code: e.target.value.toUpperCase() }))} placeholder="e.g. MUK" className="font-mono" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Parent Region</Label>
+              <Select value={regionForm.parent_id || '_none'} onValueChange={v => setRegionForm(p => ({ ...p, parent_id: v === '_none' ? '' : v }))}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="None (top-level)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">None (top-level)</SelectItem>
+                  {regions.map(r => <SelectItem key={r.id} value={r.id}>{r.name} ({r.level})</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setCreateRegionDialog(false)}>Cancel</Button>
+            <Button size="sm" onClick={handleCreateRegion} disabled={!regionForm.name}>Create Region</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

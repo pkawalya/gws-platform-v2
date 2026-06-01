@@ -36,6 +36,75 @@ if API_DATA_DIR.exists():
 
 print(f"GWS Platform V2 — Micro Server | {len(api_cache)} API endpoints loaded")
 
+# ── Database Configuration ──
+DB_CONFIG_PATH = BASE_DIR / "db-config.json"
+
+def read_db_config():
+    try:
+        if DB_CONFIG_PATH.exists():
+            with open(DB_CONFIG_PATH, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"[db-config] Failed to read config: {e}")
+    return {"configured": False}
+
+def write_db_config(config):
+    try:
+        with open(DB_CONFIG_PATH, 'w') as f:
+            json.dump(config, f, indent=2)
+        return True
+    except Exception as e:
+        print(f"[db-config] Failed to write config: {e}")
+        return False
+
+def parse_database_url(url):
+    try:
+        import re
+        pattern = r'^postgres(?:ql)?://([^:]+):([^@]+)@([^:]+):(\d+)/(.+?)(?:\?.*)?$'
+        match = re.match(pattern, url)
+        if match:
+            return {
+                "databaseUrl": url,
+                "user": match.group(1),
+                "password": match.group(2),
+                "host": match.group(3),
+                "port": int(match.group(4)),
+                "database": match.group(5),
+                "ssl": "sslmode=require" in url or "ssl=true" in url,
+                "configured": True,
+            }
+    except Exception as e:
+        print(f"[db-config] Failed to parse URL: {e}")
+    return None
+
+def test_db_connection(config):
+    host = config.get("host", "")
+    port = config.get("port", 5432)
+    database = config.get("database", "")
+    user = config.get("user", "")
+    password = config.get("password", "")
+    use_ssl = config.get("ssl", True)
+    timeout = min(config.get("connectionTimeoutMs", 5000) / 1000, 5.0)
+    if not host or not database:
+        return {"success": False, "message": "Host and database are required"}
+    start_time = time.time()
+    try:
+        sock = socket.create_connection((host, port or 5432), timeout=timeout)
+        latency_ms = int((time.time() - start_time) * 1000)
+        sock.close()
+        return {"success": True, "message": f"Host reachable at {host}:{port} in {latency_ms}ms", "latencyMs": latency_ms, "details": {"host": host, "port": port, "database": database, "user": user, "ssl": use_ssl}}
+    except socket.timeout:
+        return {"success": False, "message": f"Connection timed out after {timeout}s"}
+    except socket.gaierror:
+        return {"success": False, "message": f"Could not resolve host: {host}"}
+    except ConnectionRefusedError:
+        return {"success": False, "message": f"Connection refused at {host}:{port}"}
+    except OSError as e:
+        return {"success": False, "message": f"Network error: {str(e)}"}
+    except Exception as e:
+        latency_ms = int((time.time() - start_time) * 1000)
+        return {"success": False, "message": str(e), "latencyMs": latency_ms}
+
 # ── In-memory dynamic data stores ──
 dynamic_users = []
 dynamic_roles = []
@@ -45,11 +114,54 @@ dynamic_role_permissions = []  # { id, role_id, permission_id }
 dynamic_workflow_defs = []  # Workflow definitions with steps
 dynamic_workflow_instances = []  # Workflow instances
 dynamic_workflow_transitions = []  # Workflow transitions
+dynamic_regions = []  # Regions for data access control
+dynamic_user_regions = []  # User-region assignments
+
+# ── Default Uganda Regions ──
+def _default_regions():
+    """Pre-populate with Uganda districts as regions"""
+    uganda_districts = [
+        {"id": "rgn-all", "name": "All Regions", "slug": "all-regions", "level": "country", "code": "UG", "is_active": True, "parent_id": None},
+        {"id": "rgn-central", "name": "Central Region", "slug": "central-region", "level": "country", "code": "UG-C", "is_active": True, "parent_id": "rgn-all"},
+        {"id": "rgn-eastern", "name": "Eastern Region", "slug": "eastern-region", "level": "country", "code": "UG-E", "is_active": True, "parent_id": "rgn-all"},
+        {"id": "rgn-northern", "name": "Northern Region", "slug": "northern-region", "level": "country", "code": "UG-N", "is_active": True, "parent_id": "rgn-all"},
+        {"id": "rgn-western", "name": "Western Region", "slug": "western-region", "level": "country", "code": "UG-W", "is_active": True, "parent_id": "rgn-all"},
+        # Central Districts
+        {"id": "rgn-kla", "name": "Kampala", "slug": "kampala", "level": "district", "code": "KLA", "is_active": True, "parent_id": "rgn-central"},
+        {"id": "rgn-wak", "name": "Wakiso", "slug": "wakiso", "level": "district", "code": "WAK", "is_active": True, "parent_id": "rgn-central"},
+        {"id": "rgn-mpg", "name": "Mpigi", "slug": "mpigi", "level": "district", "code": "MPG", "is_active": True, "parent_id": "rgn-central"},
+        {"id": "rgn-mit", "name": "Mityana", "slug": "mityana", "level": "district", "code": "MIT", "is_active": True, "parent_id": "rgn-central"},
+        {"id": "rgn-mub", "name": "Mubende", "slug": "mubende", "level": "district", "code": "MUB", "is_active": True, "parent_id": "rgn-central"},
+        # Eastern Districts
+        {"id": "rgn-jja", "name": "Jinja", "slug": "jinja", "level": "district", "code": "JJA", "is_active": True, "parent_id": "rgn-eastern"},
+        {"id": "rgn-mba", "name": "Mbale", "slug": "mbale", "level": "district", "code": "MBA", "is_active": True, "parent_id": "rgn-eastern"},
+        {"id": "rgn-igr", "name": "Iganga", "slug": "iganga", "level": "district", "code": "IGR", "is_active": True, "parent_id": "rgn-eastern"},
+        {"id": "rgn-sro", "name": "Soroti", "slug": "soroti", "level": "district", "code": "SRO", "is_active": True, "parent_id": "rgn-eastern"},
+        # Northern Districts
+        {"id": "rgn-gul", "name": "Gulu", "slug": "gulu", "level": "district", "code": "GUL", "is_active": True, "parent_id": "rgn-northern"},
+        {"id": "rgn-lra", "name": "Lira", "slug": "lira", "level": "district", "code": "LRA", "is_active": True, "parent_id": "rgn-northern"},
+        {"id": "rgn-ach", "name": "Arua", "slug": "arua", "level": "district", "code": "ACH", "is_active": True, "parent_id": "rgn-northern"},
+        # Western Districts
+        {"id": "rgn-fbr", "name": "Fort Portal", "slug": "fort-portal", "level": "district", "code": "FBR", "is_active": True, "parent_id": "rgn-western"},
+        {"id": "rgn-mbr", "name": "Mbarara", "slug": "mbarara", "level": "district", "code": "MBR", "is_active": True, "parent_id": "rgn-western"},
+        {"id": "rgn-kse", "name": "Kasese", "slug": "kasese", "level": "district", "code": "KSE", "is_active": True, "parent_id": "rgn-western"},
+        {"id": "rgn-kbl", "name": "Kabale", "slug": "kabale", "level": "district", "code": "KBL", "is_active": True, "parent_id": "rgn-western"},
+    ]
+    for i, r in enumerate(uganda_districts):
+        r.setdefault("metadata", {})
+        r.setdefault("created_at", datetime.now(timezone.utc).isoformat())
+        r.setdefault("updated_at", datetime.now(timezone.utc).isoformat())
+    return uganda_districts
 
 def init_dynamic_data():
     """Initialize users, roles, permissions from cached API data or defaults"""
     global dynamic_users, dynamic_roles, dynamic_permissions
     global dynamic_user_roles, dynamic_role_permissions
+    global dynamic_regions, dynamic_user_regions
+
+    # Initialize regions
+    dynamic_regions = _default_regions()
+    dynamic_user_regions = []
 
     # Load permissions
     perms_data = api_cache.get("permissions", {})
@@ -357,6 +469,14 @@ def get_enriched_users():
                     role_copy["rolePermissions"] = role_perms
                     user_roles.append({"id": ur["id"], "role": role_copy})
         user_copy["userRoles"] = user_roles
+        # Add user regions
+        user_region_list = []
+        for ur in dynamic_user_regions:
+            if ur["user_id"] == user["id"]:
+                region = next((r for r in dynamic_regions if r["id"] == ur["region_id"]), None)
+                if region:
+                    user_region_list.append({"id": ur["id"], "region": {"id": region["id"], "name": region["name"], "slug": region["slug"], "level": region["level"], "code": region.get("code", "")}})
+        user_copy["userRegions"] = user_region_list
         result.append(user_copy)
     return result
 
@@ -513,6 +633,91 @@ class GWSHandler(BaseHTTPRequestHandler):
             body_json = json.loads(body) if body else {}
         except:
             body_json = {}
+        
+        # ── Database Config ──
+        if path == "/api/database":
+            action = body_json.get("action", "save")
+            if action == "test":
+                test_config = {**body_json}
+                if test_config.get("databaseUrl"):
+                    parsed = parse_database_url(test_config["databaseUrl"])
+                    if parsed:
+                        test_config.update(parsed)
+                result = test_db_connection(test_config)
+                self.send_json(result)
+                return
+            if action == "save" or not action:
+                save_config = {**body_json}
+                if save_config.get("databaseUrl"):
+                    parsed = parse_database_url(save_config["databaseUrl"])
+                    if parsed:
+                        save_config.update(parsed)
+                if save_config.get("password") == "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022":
+                    existing = read_db_config()
+                    save_config["password"] = existing.get("password", "")
+                if not save_config.get("databaseUrl") and save_config.get("host"):
+                    ssl_param = "?sslmode=require" if save_config.get("ssl") else ""
+                    save_config["databaseUrl"] = f"postgresql://{save_config.get('user', '')}:{save_config.get('password', '')}@{save_config.get('host', '')}:{save_config.get('port', 5432)}/{save_config.get('database', '')}{ssl_param}"
+                save_config.pop("action", None)
+                test_result = test_db_connection(save_config)
+                if not test_result["success"]:
+                    self.send_json({"success": False, "message": f"Connection test failed: {test_result['message']}", "testResult": test_result}, 400)
+                    return
+                save_config["configured"] = True
+                write_db_config(save_config)
+                self.send_json({"success": True, "message": "Database configuration saved", "testResult": test_result})
+                return
+            if action == "reset":
+                write_db_config({"configured": False})
+                self.send_json({"success": True, "message": "Configuration reset"})
+                return
+            self.send_json({"error": "Unknown action"}, 400)
+            return
+        
+        # ── Regions CRUD ──
+        if path == "/api/regions":
+            action = body_json.get("action", "create")
+            if action == "create":
+                new_region = {
+                    "id": f"rgn-{uuid.uuid4().hex[:8]}",
+                    "name": body_json.get("name", ""),
+                    "slug": body_json.get("slug", body_json.get("name", "").lower().replace(" ", "-")),
+                    "level": body_json.get("level", "district"),
+                    "code": body_json.get("code", ""),
+                    "parent_id": body_json.get("parent_id") or None,
+                    "is_active": True,
+                    "metadata": body_json.get("metadata"),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+                dynamic_regions.append(new_region)
+                self.send_json(new_region, 201)
+                return
+            if action == "assign":
+                # Assign regions to a user
+                user_id = body_json.get("user_id", "")
+                region_ids = body_json.get("region_ids", [])
+                # Remove existing assignments
+                dynamic_user_regions[:] = [ur for ur in dynamic_user_regions if ur.get("user_id") != user_id]
+                # Add new assignments
+                for rid in region_ids:
+                    dynamic_user_regions.append({
+                        "id": f"ur-{uuid.uuid4().hex[:8]}",
+                        "user_id": user_id,
+                        "region_id": rid,
+                        "assigned_by": body_json.get("assigned_by"),
+                        "assigned_at": datetime.now(timezone.utc).isoformat(),
+                    })
+                self.send_json({"success": True, "message": f"Assigned {len(region_ids)} regions to user", "assigned": region_ids})
+                return
+            if action == "delete":
+                region_id = body_json.get("id", "")
+                dynamic_regions[:] = [r for r in dynamic_regions if r["id"] != region_id]
+                dynamic_user_regions[:] = [ur for ur in dynamic_user_regions if ur.get("region_id") != region_id]
+                self.send_json({"success": True, "message": "Region deleted"})
+                return
+            self.send_json({"error": "Unknown action"}, 400)
+            return
         
         # ── Users CRUD ──
         if path == "/api/users":
@@ -1145,6 +1350,38 @@ class GWSHandler(BaseHTTPRequestHandler):
         # Dynamic endpoints: /api/users, /api/users/[id], /api/roles, /api/roles/[id], /api/permissions
         if len(parts) >= 2:
             endpoint = parts[1]
+            
+            # ── Database Config ──
+            if endpoint == "database":
+                config = read_db_config()
+                safe_config = {**config}
+                if safe_config.get("password"):
+                    safe_config["password"] = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
+                env_url = os.environ.get("DATABASE_URL", "")
+                has_env_url = bool(env_url and not env_url.startswith("file:"))
+                self.send_json({
+                    "config": safe_config,
+                    "envUrl": "Set (hidden)" if has_env_url else "Not set",
+                    "source": "config-file" if config.get("configured") else ("env-var" if has_env_url else "fallback"),
+                })
+                return
+            
+            # ── Regions ──
+            if endpoint == "regions":
+                enriched = []
+                for r in dynamic_regions:
+                    item = {**r}
+                    item["_count"] = {"userRegions": sum(1 for ur in dynamic_user_regions if ur.get("region_id") == r["id"])}
+                    if r.get("parent_id"):
+                        parent = next((p for p in dynamic_regions if p["id"] == r["parent_id"]), None)
+                        item["parent"] = {"id": r["parent_id"], "name": parent["name"] if parent else "Unknown"}
+                    else:
+                        item["parent"] = None
+                    children = [c for c in dynamic_regions if c.get("parent_id") == r["id"]]
+                    item["children"] = children
+                    enriched.append(item)
+                self.send_json({"regions": enriched, "levels": ["country", "district", "sub_county", "parish", "village"]})
+                return
             
             # ── Permissions ──
             if endpoint == "permissions":

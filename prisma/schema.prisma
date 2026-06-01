@@ -51,6 +51,7 @@ model Client {
   id               BigInt   @id @default(autoincrement())
   organization_id  String?
   branch_id        String?
+  region_id        String?
   client_ref       String   @unique
   client_type      String   @default("individual")
   first_name       String?
@@ -73,6 +74,7 @@ model Client {
 
   organization Organization? @relation(fields: [organization_id], references: [id])
   branch       Branch?       @relation(fields: [branch_id], references: [id])
+  region       Region?       @relation(fields: [region_id], references: [id])
 
   surveyProjects SurveyProject[]
   invoices       Invoice[]
@@ -82,6 +84,7 @@ model Client {
 
   @@index([organization_id])
   @@index([status])
+  @@index([region_id])
   @@map("clients")
 }
 
@@ -90,6 +93,7 @@ model SurveyProject {
   id               BigInt   @id @default(autoincrement())
   organization_id  String?
   branch_id        String?
+  region_id        String?
   client_id        BigInt
   project_ref      String   @unique
   project_type     String
@@ -110,6 +114,7 @@ model SurveyProject {
   updated_at       DateTime @updatedAt
 
   client Client @relation(fields: [client_id], references: [id])
+  region Region? @relation(fields: [region_id], references: [id])
 
   approvalSteps    ApprovalStep[]
   progressRecords  ClientProjectProgress[]
@@ -118,6 +123,7 @@ model SurveyProject {
   @@index([organization_id])
   @@index([client_id])
   @@index([status])
+  @@index([region_id])
   @@map("survey_projects")
 }
 
@@ -162,6 +168,7 @@ model Invoice {
   id              BigInt   @id @default(autoincrement())
   organization_id String?
   client_id       BigInt
+  region_id       String?
   invoice_number  String   @unique
   amount          Decimal  @db.Decimal(14, 2)
   tax_amount      Decimal? @db.Decimal(14, 2)
@@ -175,8 +182,10 @@ model Invoice {
   updated_at      DateTime @updatedAt
 
   client Client @relation(fields: [client_id], references: [id])
+  region Region? @relation(fields: [region_id], references: [id])
   @@index([client_id])
   @@index([status])
+  @@index([region_id])
   @@map("invoices")
 }
 
@@ -383,6 +392,7 @@ model FieldObservation {
   id               BigInt   @id @default(autoincrement())
   organization_id  String?
   branch_id        String?
+  region_id        String?
   survey_project_id BigInt
   observer_id      String
   observation_type String
@@ -401,11 +411,13 @@ model FieldObservation {
   updated_at       DateTime @updatedAt
 
   surveyProject SurveyProject @relation(fields: [survey_project_id], references: [id])
+  region        Region?       @relation(fields: [region_id], references: [id])
 
   @@index([survey_project_id])
   @@index([observer_id])
   @@index([organization_id])
   @@index([sync_id])
+  @@index([region_id])
   @@map("field_observations")
 }
 
@@ -510,6 +522,52 @@ model AiCallLog {
   @@map("ai_call_logs")
 }
 
+// ── Regions (Data Access Control) ──
+model Region {
+  id              String   @id @default(cuid())
+  organization_id String?
+  name            String
+  slug            String
+  level           String   @default("district")   // district, sub_county, parish, village, country
+  parent_id       String?
+  code            String?  // ISO or district code
+  is_active       Boolean  @default(true)
+  metadata        Json?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  parent          Region?   @relation("RegionHierarchy", fields: [parent_id], references: [id])
+  children        Region[]  @relation("RegionHierarchy")
+
+  userRegions     UserRegion[]
+  clients         Client[]
+  surveyProjects  SurveyProject[]
+  invoices        Invoice[]
+  fieldObservations FieldObservation[]
+
+  @@unique([organization_id, slug])
+  @@index([organization_id])
+  @@index([level])
+  @@index([parent_id])
+  @@map("regions")
+}
+
+model UserRegion {
+  id          String   @id @default(cuid())
+  user_id     String
+  region_id   String
+  assigned_by String?
+  assigned_at DateTime @default(now())
+
+  user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  region Region @relation(fields: [region_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, region_id])
+  @@index([user_id])
+  @@index([region_id])
+  @@map("user_regions")
+}
+
 // ── User & Role Management ──
 model User {
   id            String    @id @default(cuid())
@@ -524,7 +582,8 @@ model User {
   created_at    DateTime  @default(now())
   updated_at    DateTime  @updatedAt
 
-  userRoles UserRole[]
+  userRoles  UserRole[]
+  userRegions UserRegion[]
 
   @@index([email])
   @@index([status])
