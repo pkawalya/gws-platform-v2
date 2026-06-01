@@ -16,6 +16,11 @@ import {
   Smartphone, Layers, Brain, BarChart2, Building2, X, Phone, Mail,
   Pencil, Save, Globe, Home, MapPinned, Building, StickyNote,
   CreditCard, Clock, User, ExternalLink, Copy, Plus,
+  Zap, Workflow, FileCheck, ArrowUpRight, ArrowDownLeft,
+  Database, Upload, Download, Settings, Timer, CircleDot,
+  ListChecks, RefreshCw, Ban, Pause, ChevronRight,
+  Tag, Sparkles, Link2, Hash, Check, Shield, Paperclip,
+  ArrowLeftRight, CircleCheck, CircleX, MessageCircle,
 } from 'lucide-react'
 import { fmt, statusBadge, PRIORITY_BADGE, formatUGX, STATUS_BADGE, UGANDA_DISTRICTS } from './constants'
 import { DetailField } from './helpers'
@@ -1448,45 +1453,173 @@ function ProjectDetailPage({ data, onRefresh, openDetail }: { data: ProjectRecor
 
 function WorkflowDetailPage({ data }: any) {
   if (!data) return null
+  const handleFieldSave = async (field: string, value: string) => {
+    try { await patchRecord(`/api/workflows/${data.id}`, { [field]: value }) } catch (e) { console.error(e) }
+  }
+  const stepTypeColors: Record<string, string> = {
+    approval: 'border-amber-400 bg-amber-50 text-amber-700',
+    notification: 'border-blue-400 bg-blue-50 text-blue-700',
+    action: 'border-emerald-400 bg-emerald-50 text-emerald-700',
+    review: 'border-violet-400 bg-violet-50 text-violet-700',
+  }
+  const stepTypeBadgeColors: Record<string, string> = {
+    approval: 'bg-amber-100 text-amber-800',
+    notification: 'bg-blue-100 text-blue-800',
+    action: 'bg-emerald-100 text-emerald-800',
+    review: 'bg-violet-100 text-violet-800',
+  }
+
   return (
-    <div className="grid lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 space-y-6">
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Workflow Steps</CardTitle></CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {data.steps?.map((step: any, idx: number) => (
-                <div key={step.id} className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors relative">
-                  {idx < (data.steps?.length || 0) - 1 && (
-                    <div className="absolute left-[31px] top-[60px] w-0.5 h-[calc(100%-24px)] bg-slate-200" />
-                  )}
-                  <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-sm font-bold shrink-0">{step.step_order}</div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{step.name}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="text-xs">{step.step_type}</Badge>
-                      {step.sla_hours && <span className="text-xs text-slate-400"><Clock3 className="w-3 h-3 inline mr-1" />{step.sla_hours}h SLA</span>}
-                    </div>
-                  </div>
-                  <span className="text-xs text-slate-400">{step.assignee_id || 'Unassigned'}</span>
+    <div>
+      {/* ── Hero Header ── */}
+      <div className="relative mb-8">
+        <div className="h-28 bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-500 rounded-2xl shadow-lg" />
+        <div className="absolute bottom-0 left-0 right-0 px-6 translate-y-1/2">
+          <div className="flex items-end justify-between">
+            <div className="flex items-end gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-white shadow-lg flex items-center justify-center border-4 border-white">
+                <GitBranch className="w-7 h-7 text-orange-600" />
+              </div>
+              <div className="pb-1">
+                <h2 className="text-xl font-bold text-slate-900">{data.name}</h2>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {data.is_active ? <Badge className="bg-emerald-100 text-emerald-800">Active</Badge> : <Badge className="bg-slate-100 text-slate-600">Inactive</Badge>}
+                  <Badge variant="outline" className="text-xs bg-white/90 backdrop-blur-sm">
+                    <Zap className="w-3 h-3 mr-1" />{fmt(data.trigger_type)}
+                  </Badge>
+                  <Badge variant="outline" className="text-xs bg-white/90 backdrop-blur-sm font-mono">v{data.version}</Badge>
                 </div>
-              ))}
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
-      <div className="space-y-6">
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Details</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            <DetailField label="Name" value={data.name} />
-            <DetailField label="Version" value={`v${data.version}`} />
-            <DetailField label="Trigger" value={fmt(data.trigger_type)} />
-            <DetailField label="Status" value={data.is_active ? <Badge className="bg-emerald-100 text-emerald-800">Active</Badge> : <Badge className="bg-slate-100 text-slate-600">Inactive</Badge>} />
-            {data.description && <DetailField label="Description" value={data.description} />}
-          </CardContent>
-        </Card>
+
+      <div className="h-10" />
+
+      {/* ── Quick Stats Row ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+        {[
+          { label: 'Steps', value: data.steps?.length || 0, icon: ListChecks, color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-100' },
+          { label: 'Approval Steps', value: data.steps?.filter((s: any) => s.step_type === 'approval').length || 0, icon: ShieldCheck, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' },
+          { label: 'Trigger', value: fmt(data.trigger_type), icon: Zap, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
+          { label: 'Status', value: data.is_active ? 'Active' : 'Inactive', icon: Activity, color: data.is_active ? 'text-emerald-600' : 'text-slate-500', bg: data.is_active ? 'bg-emerald-50' : 'bg-slate-50', border: data.is_active ? 'border-emerald-100' : 'border-slate-100' },
+        ].map(s => (
+          <Card key={s.label} className={`hover:shadow-md transition-all border ${s.border}`}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl ${s.bg} flex items-center justify-center`}>
+                <s.icon className={`w-5 h-5 ${s.color}`} />
+              </div>
+              <div>
+                <p className="text-lg font-bold tracking-tight">{s.value}</p>
+                <p className="text-[11px] text-slate-500 font-medium">{s.label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
+
+      {/* ── Main Content with Tabs ── */}
+      <Tabs defaultValue="steps" className="w-full">
+        <TabsList className="w-full justify-start border-b rounded-none bg-transparent h-auto p-0 gap-0">
+          {[
+            { value: 'steps', label: `Steps (${data.steps?.length || 0})` },
+            { value: 'details', label: 'Details' },
+          ].map(tab => (
+            <TabsTrigger key={tab.value} value={tab.value}
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-orange-600 data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm data-[state=active]:text-orange-700 data-[state=active]:font-semibold text-slate-500"
+            >{tab.label}</TabsTrigger>
+          ))}
+        </TabsList>
+
+        {/* ── Steps Tab ── */}
+        <TabsContent value="steps" className="mt-6">
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <ListChecks className="w-4 h-4 text-orange-600" /> Workflow Steps
+            </CardTitle></CardHeader>
+            <CardContent>
+              {data.steps?.length > 0 ? (
+                <div className="space-y-0">
+                  {data.steps.map((step: any, idx: number) => (
+                    <div key={step.id} className="flex items-start gap-4 relative pb-6">
+                      {idx < data.steps.length - 1 && (
+                        <div className="absolute left-[19px] top-[40px] w-0.5 h-[calc(100%-16px)] bg-slate-200" />
+                      )}
+                      <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center text-sm font-bold shrink-0 ${stepTypeColors[step.step_type] || 'border-slate-300 bg-slate-50 text-slate-600'}`}>
+                        {step.step_order}
+                      </div>
+                      <div className="flex-1 pt-1">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium">{step.name}</p>
+                          <Badge className={`text-[10px] ${stepTypeBadgeColors[step.step_type] || 'bg-slate-100 text-slate-600'}`}>
+                            {fmt(step.step_type)}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-3 mt-1.5">
+                          {step.sla_hours && (
+                            <span className="text-xs text-slate-500 flex items-center gap-1">
+                              <Timer className="w-3 h-3" />{step.sla_hours}h SLA
+                            </span>
+                          )}
+                          <span className="text-xs text-slate-400 flex items-center gap-1">
+                            <User className="w-3 h-3" />{step.assignee_id || 'Unassigned'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <GitBranch className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm text-slate-400">No steps defined</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Details Tab ── */}
+        <TabsContent value="details" className="mt-6">
+          <div className="grid lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <Workflow className="w-4 h-4 text-orange-600" /> Workflow Configuration
+                </CardTitle></CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
+                    <EditableField label="Name" value={data.name} icon={GitBranch} onSave={v => handleFieldSave('name', v)} />
+                    <DetailField label="Version" value={`v${data.version}`} />
+                    <EditableField label="Trigger Type" value={data.trigger_type} icon={Zap} onSave={v => handleFieldSave('trigger_type', v)} />
+                    <DetailField label="Status" value={data.is_active ? <Badge className="bg-emerald-100 text-emerald-800">Active</Badge> : <Badge className="bg-slate-100 text-slate-600">Inactive</Badge>} />
+                    <DetailField label="Created" value={new Date(data.created_at).toLocaleString()} />
+                    <DetailField label="Organization" value={data.organization?.name || '—'} />
+                  </div>
+                </CardContent>
+              </Card>
+              {data.description && (
+                <Card className="mt-6">
+                  <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Description</CardTitle></CardHeader>
+                  <CardContent><p className="text-sm text-slate-600 whitespace-pre-wrap">{data.description}</p></CardContent>
+                </Card>
+              )}
+            </div>
+            <div>
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <Clock3 className="w-4 h-4 text-slate-500" /> Timeline
+                </CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <DetailField label="Created" value={new Date(data.created_at).toLocaleString()} />
+                  <DetailField label="Updated" value={data.updated_at ? new Date(data.updated_at).toLocaleString() : '—'} />
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
@@ -1498,57 +1631,163 @@ function WorkflowDetailPage({ data }: any) {
 function ObservationDetailPage({ data }: any) {
   if (!data) return null
   const hasCoords = data.latitude && data.longitude && !isNaN(Number(data.latitude)) && !isNaN(Number(data.longitude))
+  const formDataEntries = data.form_data ? (typeof data.form_data === 'object' ? Object.entries(data.form_data) : []) : []
+
   return (
-    <div className="grid lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 space-y-6">
-        {hasCoords && (
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-emerald-600" /> Observation Location
-            </CardTitle></CardHeader>
-            <CardContent>
-              <DetailMap latitude={data.latitude} longitude={data.longitude} name={data.title} type="observation" />
+    <div>
+      {/* ── Hero Header ── */}
+      <div className="relative mb-8">
+        <div className="h-28 bg-gradient-to-br from-cyan-500 via-teal-500 to-emerald-500 rounded-2xl shadow-lg" />
+        <div className="absolute bottom-0 left-0 right-0 px-6 translate-y-1/2">
+          <div className="flex items-end justify-between">
+            <div className="flex items-end gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-white shadow-lg flex items-center justify-center border-4 border-white">
+                <Smartphone className="w-7 h-7 text-cyan-600" />
+              </div>
+              <div className="pb-1">
+                <h2 className="text-xl font-bold text-slate-900">{data.title}</h2>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {statusBadge(data.status)}
+                  <Badge variant="outline" className="text-xs bg-white/90 backdrop-blur-sm">{fmt(data.observation_type)}</Badge>
+                  {data.synced_at && <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700">Synced</Badge>}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="h-10" />
+
+      {/* ── Quick Stats Row ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+        {[
+          { label: 'Type', value: fmt(data.observation_type), icon: Smartphone, color: 'text-cyan-600', bg: 'bg-cyan-50', border: 'border-cyan-100' },
+          { label: 'Accuracy', value: data.accuracy_meters ? `${Number(data.accuracy_meters)}m` : '—', icon: CircleDot, color: 'text-teal-600', bg: 'bg-teal-50', border: 'border-teal-100' },
+          { label: 'Altitude', value: data.altitude_meters ? `${Number(data.altitude_meters)}m` : '—', icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' },
+          { label: 'Sync Status', value: data.synced_at ? 'Synced' : 'Pending', icon: RefreshCw, color: data.synced_at ? 'text-emerald-600' : 'text-amber-600', bg: data.synced_at ? 'bg-emerald-50' : 'bg-amber-50', border: data.synced_at ? 'border-emerald-100' : 'border-amber-100' },
+        ].map(s => (
+          <Card key={s.label} className={`hover:shadow-md transition-all border ${s.border}`}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl ${s.bg} flex items-center justify-center`}>
+                <s.icon className={`w-5 h-5 ${s.color}`} />
+              </div>
+              <div>
+                <p className="text-lg font-bold tracking-tight">{s.value}</p>
+                <p className="text-[11px] text-slate-500 font-medium">{s.label}</p>
+              </div>
             </CardContent>
           </Card>
-        )}
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Observation Details</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <DetailField label="Title" value={data.title} />
-              <DetailField label="Type" value={fmt(data.observation_type)} />
-              <DetailField label="Status" value={statusBadge(data.status)} />
-              <DetailField label="Latitude" value={<span className="font-mono">{Number(data.latitude).toFixed(6)}</span>} />
-              <DetailField label="Longitude" value={<span className="font-mono">{Number(data.longitude).toFixed(6)}</span>} />
-              <DetailField label="Accuracy" value={data.accuracy_meters ? `${Number(data.accuracy_meters)}m` : '—'} />
-              <DetailField label="Altitude" value={data.altitude_meters ? `${Number(data.altitude_meters)}m` : '—'} />
-              <DetailField label="Observer" value={data.observer_id || '—'} />
-              <DetailField label="Synced" value={data.synced_at ? new Date(data.synced_at).toLocaleString() : '—'} />
-            </div>
-          </CardContent>
-        </Card>
-        {data.description && (
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Description</CardTitle></CardHeader>
-            <CardContent><p className="text-sm text-slate-600 whitespace-pre-wrap">{data.description}</p></CardContent>
-          </Card>
-        )}
-        {data.form_data && (
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Form Data</CardTitle></CardHeader>
-            <CardContent><pre className="text-xs bg-slate-50 p-4 rounded-xl overflow-auto">{JSON.stringify(data.form_data, null, 2)}</pre></CardContent>
-          </Card>
-        )}
+        ))}
       </div>
-      <div>
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Quick Info</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            <DetailField label="Status" value={statusBadge(data.status)} />
-            <DetailField label="Sync ID" value={data.sync_id ? <span className="font-mono text-xs">{data.sync_id}</span> : '—'} />
-            <DetailField label="Created" value={new Date(data.created_at).toLocaleString()} />
-          </CardContent>
-        </Card>
+
+      {/* ── Main Content ── */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          {/* Map */}
+          {hasCoords && (
+            <Card>
+              <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <MapPinned className="w-4 h-4 text-cyan-600" /> Observation Location
+              </CardTitle></CardHeader>
+              <CardContent>
+                <DetailMap latitude={data.latitude} longitude={data.longitude} name={data.title} type="observation" />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Details Card */}
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <FileText className="w-4 h-4 text-cyan-600" /> Observation Details
+            </CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <DetailField label="Title" value={data.title} />
+                <DetailField label="Type" value={fmt(data.observation_type)} />
+                <DetailField label="Status" value={statusBadge(data.status)} />
+                <DetailField label="Latitude" value={<span className="font-mono">{Number(data.latitude).toFixed(6)}</span>} />
+                <DetailField label="Longitude" value={<span className="font-mono">{Number(data.longitude).toFixed(6)}</span>} />
+                <DetailField label="Accuracy" value={data.accuracy_meters ? `${Number(data.accuracy_meters)}m` : '—'} />
+                <DetailField label="Altitude" value={data.altitude_meters ? `${Number(data.altitude_meters)}m` : '—'} />
+                <DetailField label="Observer" value={data.observer_id || '—'} />
+                <DetailField label="Synced" value={data.synced_at ? new Date(data.synced_at).toLocaleString() : '—'} />
+              </div>
+            </CardContent>
+          </Card>
+
+          {data.description && (
+            <Card>
+              <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Description</CardTitle></CardHeader>
+              <CardContent><p className="text-sm text-slate-600 whitespace-pre-wrap">{data.description}</p></CardContent>
+            </Card>
+          )}
+
+          {/* Form Data as Key-Value Table */}
+          {formDataEntries.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Database className="w-4 h-4 text-cyan-600" /> Form Data
+              </CardTitle></CardHeader>
+              <CardContent>
+                <div className="rounded-xl border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50">
+                        <TableHead className="text-xs h-9">Field</TableHead>
+                        <TableHead className="text-xs h-9">Value</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {formDataEntries.map(([key, val]) => (
+                        <TableRow key={String(key)}>
+                          <TableCell className="text-xs font-medium text-slate-700 py-2">{fmt(String(key))}</TableCell>
+                          <TableCell className="text-xs text-slate-600 py-2 font-mono">
+                            {typeof val === 'object' ? JSON.stringify(val) : String(val ?? '—')}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Media Paths */}
+          {data.media_paths && Array.isArray(data.media_paths) && data.media_paths.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Paperclip className="w-4 h-4 text-cyan-600" /> Media Attachments
+              </CardTitle></CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {data.media_paths.map((path: string, idx: number) => (
+                    <div key={idx} className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 text-xs">
+                      <FileText className="w-3.5 h-3.5 text-slate-400" />
+                      <span className="font-mono text-slate-600 truncate">{path}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Hash className="w-4 h-4 text-slate-500" /> Quick Info
+            </CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <DetailField label="Status" value={statusBadge(data.status)} />
+              <DetailField label="Sync ID" value={data.sync_id ? <span className="font-mono text-xs">{data.sync_id}</span> : '—'} />
+              <DetailField label="Created" value={new Date(data.created_at).toLocaleString()} />
+              <DetailField label="Project" value={data.surveyProject?.title || '—'} />
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )
@@ -1560,33 +1799,146 @@ function ObservationDetailPage({ data }: any) {
 
 function SyncDetailPage({ data }: any) {
   if (!data) return null
+  const durationSec = data.completed_at ? Math.round((new Date(data.completed_at).getTime() - new Date(data.started_at).getTime()) / 1000) : null
+  const isPush = data.sync_type === 'push'
+  const statusProgress: Record<string, number> = { pending: 10, in_progress: 50, completed: 100, failed: 100 }
+
   return (
-    <div className="grid lg:grid-cols-2 gap-6">
-      <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Sync Details</CardTitle></CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4">
-            <DetailField label="Device" value={<span className="font-mono text-xs">{data.device_id}</span>} />
-            <DetailField label="User" value={data.user_id} />
-            <DetailField label="Type" value={<Badge className={data.sync_type === 'push' ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'}>{data.sync_type.toUpperCase()}</Badge>} />
-            <DetailField label="Status" value={statusBadge(data.status)} />
-            <DetailField label="Records Pushed" value={data.records_pushed} />
-            <DetailField label="Records Pulled" value={data.records_pulled} />
-            <DetailField label="Conflicts" value={data.conflicts_count} />
-            <DetailField label="Started" value={new Date(data.started_at).toLocaleString()} />
-            {data.completed_at && <DetailField label="Completed" value={new Date(data.completed_at).toLocaleString()} />}
-            {data.completed_at && <DetailField label="Duration" value={`${Math.round((new Date(data.completed_at).getTime() - new Date(data.started_at).getTime()) / 1000)}s`} />}
+    <div>
+      {/* ── Hero Header ── */}
+      <div className="relative mb-8">
+        <div className="h-28 bg-gradient-to-br from-blue-500 via-cyan-500 to-teal-500 rounded-2xl shadow-lg" />
+        <div className="absolute bottom-0 left-0 right-0 px-6 translate-y-1/2">
+          <div className="flex items-end justify-between">
+            <div className="flex items-end gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-white shadow-lg flex items-center justify-center border-4 border-white">
+                {isPush ? <Upload className="w-7 h-7 text-blue-600" /> : <Download className="w-7 h-7 text-cyan-600" />}
+              </div>
+              <div className="pb-1">
+                <h2 className="text-xl font-bold text-slate-900">Sync — {data.device_id}</h2>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {statusBadge(data.status)}
+                  <Badge className={isPush ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'}>
+                    {isPush ? <Upload className="w-3 h-3 mr-1" /> : <Download className="w-3 h-3 mr-1" />}
+                    {data.sync_type.toUpperCase()}
+                  </Badge>
+                  {durationSec !== null && (
+                    <Badge variant="outline" className="text-xs bg-white/90 backdrop-blur-sm font-mono">{durationSec}s</Badge>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
-        </CardContent>
-      </Card>
-      {data.error_message && (
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold text-red-600 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4" /> Error
-          </CardTitle></CardHeader>
-          <CardContent><pre className="text-xs bg-red-50 p-4 rounded-xl text-red-700 whitespace-pre-wrap">{data.error_message}</pre></CardContent>
-        </Card>
-      )}
+        </div>
+      </div>
+
+      <div className="h-10" />
+
+      {/* ── Quick Stats Row ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+        {[
+          { label: 'Pushed', value: data.records_pushed ?? 0, icon: Upload, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
+          { label: 'Pulled', value: data.records_pulled ?? 0, icon: Download, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' },
+          { label: 'Conflicts', value: data.conflicts_count ?? 0, icon: AlertCircle, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' },
+          { label: 'Duration', value: durationSec !== null ? `${durationSec}s` : 'Running…', icon: Timer, color: 'text-cyan-600', bg: 'bg-cyan-50', border: 'border-cyan-100' },
+        ].map(s => (
+          <Card key={s.label} className={`hover:shadow-md transition-all border ${s.border}`}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl ${s.bg} flex items-center justify-center`}>
+                <s.icon className={`w-5 h-5 ${s.color}`} />
+              </div>
+              <div>
+                <p className="text-lg font-bold tracking-tight">{s.value}</p>
+                <p className="text-[11px] text-slate-500 font-medium">{s.label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* ── Main Content ── */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          {/* Sync Progress */}
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 text-blue-600" /> Sync Progress
+            </CardTitle></CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">Status</span>
+                  <span className="font-medium">{fmt(data.status)}</span>
+                </div>
+                <Progress value={statusProgress[data.status] || 0} className={`h-3 ${data.status === 'failed' ? '[&>div]:bg-red-500' : '[&>div]:bg-blue-500'}`} />
+                {/* Visual metrics */}
+                <div className="grid grid-cols-3 gap-4 mt-2">
+                  <div className="p-3 rounded-xl bg-blue-50 text-center border border-blue-100">
+                    <Upload className="w-5 h-5 text-blue-600 mx-auto mb-1" />
+                    <p className="text-lg font-bold text-blue-700">{data.records_pushed ?? 0}</p>
+                    <p className="text-[10px] text-blue-500 uppercase tracking-wide">Pushed</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-emerald-50 text-center border border-emerald-100">
+                    <Download className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
+                    <p className="text-lg font-bold text-emerald-700">{data.records_pulled ?? 0}</p>
+                    <p className="text-[10px] text-emerald-500 uppercase tracking-wide">Pulled</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-amber-50 text-center border border-amber-100">
+                    <AlertCircle className="w-5 h-5 text-amber-600 mx-auto mb-1" />
+                    <p className="text-lg font-bold text-amber-700">{data.conflicts_count ?? 0}</p>
+                    <p className="text-[10px] text-amber-500 uppercase tracking-wide">Conflicts</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Sync Details */}
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Database className="w-4 h-4 text-blue-600" /> Sync Details
+            </CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4">
+                <DetailField label="Device" value={<span className="font-mono text-xs">{data.device_id}</span>} />
+                <DetailField label="User" value={data.user_id} />
+                <DetailField label="Type" value={<Badge className={isPush ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'}>{data.sync_type.toUpperCase()}</Badge>} />
+                <DetailField label="Status" value={statusBadge(data.status)} />
+                <DetailField label="Started" value={new Date(data.started_at).toLocaleString()} />
+                {data.completed_at && <DetailField label="Completed" value={new Date(data.completed_at).toLocaleString()} />}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Error Display */}
+          {data.error_message && (
+            <Card className="border-red-200">
+              <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold text-red-600 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4" /> Sync Error
+              </CardTitle></CardHeader>
+              <CardContent>
+                <div className="bg-red-50 border border-red-100 rounded-xl p-4">
+                  <pre className="text-xs text-red-700 whitespace-pre-wrap">{data.error_message}</pre>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Clock3 className="w-4 h-4 text-slate-500" /> Timeline
+            </CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <DetailField label="Started" value={new Date(data.started_at).toLocaleString()} />
+              {data.completed_at && <DetailField label="Completed" value={new Date(data.completed_at).toLocaleString()} />}
+              {durationSec !== null && <DetailField label="Duration" value={`${durationSec}s`} />}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1598,31 +1950,121 @@ function SyncDetailPage({ data }: any) {
 function AIModelDetailPage({ data }: any) {
   if (!data) return null
   return (
-    <div className="grid lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 space-y-6">
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Model Configuration</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <DetailField label="Provider" value={data.provider} />
-              <DetailField label="Model Name" value={<span className="font-mono text-xs">{data.model_name}</span>} />
-              <DetailField label="Status" value={data.is_active ? <Badge className="bg-emerald-100 text-emerald-800">Active</Badge> : <Badge className="bg-slate-100 text-slate-600">Inactive</Badge>} />
-              <DetailField label="Cost / 1K Input" value={data.cost_per_1k_input ? `$${Number(data.cost_per_1k_input).toFixed(4)}` : '—'} />
-              <DetailField label="Cost / 1K Output" value={data.cost_per_1k_output ? `$${Number(data.cost_per_1k_output).toFixed(4)}` : '—'} />
-              <DetailField label="Max Tokens" value={data.max_tokens?.toLocaleString() || '—'} />
+    <div>
+      {/* ── Hero Header ── */}
+      <div className="relative mb-8">
+        <div className="h-28 bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 rounded-2xl shadow-lg" />
+        <div className="absolute bottom-0 left-0 right-0 px-6 translate-y-1/2">
+          <div className="flex items-end justify-between">
+            <div className="flex items-end gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-white shadow-lg flex items-center justify-center border-4 border-white">
+                <Brain className="w-7 h-7 text-violet-600" />
+              </div>
+              <div className="pb-1">
+                <h2 className="text-xl font-bold text-slate-900">{data.display_name}</h2>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {data.is_active ? <Badge className="bg-emerald-100 text-emerald-800">Active</Badge> : <Badge className="bg-slate-100 text-slate-600">Inactive</Badge>}
+                  <Badge variant="outline" className="text-xs bg-white/90 backdrop-blur-sm">{data.provider}</Badge>
+                  <Badge variant="outline" className="text-xs bg-white/90 backdrop-blur-sm font-mono">{data.model_name}</Badge>
+                </div>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-      </div>
-      <Card>
-        <CardContent className="p-8 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-violet-100 flex items-center justify-center mx-auto mb-4">
-            <Cpu className="w-8 h-8 text-violet-600" />
           </div>
-          <p className="font-semibold">{data.display_name}</p>
-          <p className="text-xs text-slate-400 font-mono mt-1">{data.id}</p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+
+      <div className="h-10" />
+
+      {/* ── Quick Stats Row ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+        {[
+          { label: 'Cost / 1K In', value: data.cost_per_1k_input ? `$${Number(data.cost_per_1k_input).toFixed(4)}` : '—', icon: DollarSign, color: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-100' },
+          { label: 'Cost / 1K Out', value: data.cost_per_1k_output ? `$${Number(data.cost_per_1k_output).toFixed(4)}` : '—', icon: TrendingUp, color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-100' },
+          { label: 'Max Tokens', value: data.max_tokens?.toLocaleString() || '—', icon: Hash, color: 'text-fuchsia-600', bg: 'bg-fuchsia-50', border: 'border-fuchsia-100' },
+          { label: 'Status', value: data.is_active ? 'Active' : 'Inactive', icon: Sparkles, color: data.is_active ? 'text-emerald-600' : 'text-slate-500', bg: data.is_active ? 'bg-emerald-50' : 'bg-slate-50', border: data.is_active ? 'border-emerald-100' : 'border-slate-100' },
+        ].map(s => (
+          <Card key={s.label} className={`hover:shadow-md transition-all border ${s.border}`}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl ${s.bg} flex items-center justify-center`}>
+                <s.icon className={`w-5 h-5 ${s.color}`} />
+              </div>
+              <div>
+                <p className="text-lg font-bold tracking-tight">{s.value}</p>
+                <p className="text-[11px] text-slate-500 font-medium">{s.label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* ── Main Content ── */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          {/* Model Configuration */}
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Cpu className="w-4 h-4 text-violet-600" /> Model Configuration
+            </CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <DetailField label="Provider" value={data.provider} />
+                <DetailField label="Model Name" value={<span className="font-mono text-xs">{data.model_name}</span>} />
+                <DetailField label="Status" value={data.is_active ? <Badge className="bg-emerald-100 text-emerald-800">Active</Badge> : <Badge className="bg-slate-100 text-slate-600">Inactive</Badge>} />
+                <DetailField label="Cost / 1K Input" value={data.cost_per_1k_input ? `$${Number(data.cost_per_1k_input).toFixed(4)}` : '—'} />
+                <DetailField label="Cost / 1K Output" value={data.cost_per_1k_output ? `$${Number(data.cost_per_1k_output).toFixed(4)}` : '—'} />
+                <DetailField label="Max Tokens" value={data.max_tokens?.toLocaleString() || '—'} />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Related Prompt Templates */}
+          {data.promptTemplates && data.promptTemplates.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <StickyNote className="w-4 h-4 text-purple-600" /> Prompt Templates ({data.promptTemplates.length})
+              </CardTitle></CardHeader>
+              <CardContent>
+                <div className="divide-y">
+                  {data.promptTemplates.map((t: any) => (
+                    <div key={t.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
+                      <div>
+                        <p className="text-sm font-medium">{t.name}</p>
+                        <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">{t.template?.slice(0, 80)}</p>
+                      </div>
+                      {t.is_active ? <Badge className="bg-emerald-100 text-emerald-800 text-[10px]">Active</Badge> : <Badge className="bg-slate-100 text-slate-600 text-[10px]">Inactive</Badge>}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+          <Card>
+            <CardContent className="p-6 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-violet-100 flex items-center justify-center mx-auto mb-4">
+                <Brain className="w-8 h-8 text-violet-600" />
+              </div>
+              <p className="font-semibold">{data.display_name}</p>
+              <p className="text-xs text-slate-400 font-mono mt-1">{data.id}</p>
+              <div className="mt-3">
+                {data.is_active ? <Badge className="bg-emerald-100 text-emerald-800">Active</Badge> : <Badge className="bg-slate-100 text-slate-600">Inactive</Badge>}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Clock3 className="w-4 h-4 text-slate-500" /> Timeline
+            </CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <DetailField label="Created" value={new Date(data.created_at).toLocaleString()} />
+              <DetailField label="Updated" value={data.updated_at ? new Date(data.updated_at).toLocaleString() : '—'} />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1638,49 +2080,234 @@ function InvoiceDetailPage({ data, onRefresh }: { data: any; onRefresh: () => vo
     try { await patchRecord(`/api/invoices/${data.id}`, { status: newStatus }); onRefresh() }
     catch (e) { console.error(e) } finally { setActionLoading(false) }
   }
+  const handleFieldSave = async (field: string, value: string) => {
+    try { await patchRecord(`/api/invoices/${data.id}`, { [field]: value }); onRefresh() }
+    catch (e) { console.error(e) }
+  }
+  const clientName = data.client?.company_name || `${data.client?.first_name} ${data.client?.last_name}`
+  const subtotal = Number(data.amount || 0)
+  const tax = Number(data.tax_amount || 0)
+  const total = Number(data.total_amount || 0)
+  const isOverdue = data.due_date && new Date(data.due_date) < new Date() && data.status !== 'paid'
+  const paymentSteps = ['draft', 'sent', 'paid']
+  const currentStepIdx = paymentSteps.indexOf(data.status)
 
   return (
-    <div className="grid lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 space-y-6">
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Invoice Details</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <DetailField label="Invoice Number" value={<span className="font-mono font-bold">{data.invoice_number}</span>} />
-              <DetailField label="Total Amount" value={<span className="text-lg font-bold">UGX {Number(data.total_amount).toLocaleString()}</span>} />
-              <DetailField label="Status" value={statusBadge(data.status)} />
-              <DetailField label="Client" value={data.client?.company_name || `${data.client?.first_name} ${data.client?.last_name}`} />
-              <DetailField label="Issue Date" value={data.issued_at ? new Date(data.issued_at).toLocaleDateString() : data.created_at ? new Date(data.created_at).toLocaleDateString() : '—'} />
-              <DetailField label="Due Date" value={data.due_date ? new Date(data.due_date).toLocaleDateString() : '—'} />
+    <div>
+      {/* ── Hero Header ── */}
+      <div className="relative mb-8">
+        <div className="h-28 bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 rounded-2xl shadow-lg" />
+        <div className="absolute bottom-0 left-0 right-0 px-6 translate-y-1/2">
+          <div className="flex items-end justify-between">
+            <div className="flex items-end gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-white shadow-lg flex items-center justify-center border-4 border-white">
+                <Receipt className="w-7 h-7 text-emerald-600" />
+              </div>
+              <div className="pb-1">
+                <h2 className="text-xl font-bold text-slate-900">{data.invoice_number}</h2>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {statusBadge(data.status)}
+                  <Badge variant="outline" className="text-xs bg-white/90 backdrop-blur-sm font-mono">{data.invoice_number}</Badge>
+                  {isOverdue && <Badge className="bg-red-100 text-red-800">Overdue</Badge>}
+                </div>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-        {data.line_items && (
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Line Items</CardTitle></CardHeader>
-            <CardContent><pre className="text-xs bg-slate-50 p-4 rounded-xl overflow-auto">{JSON.stringify(data.line_items, null, 2)}</pre></CardContent>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="h-9 bg-white/95 backdrop-blur-sm shadow-sm" disabled={actionLoading}>
+                  Status <ChevronDown className="w-4 h-4 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {['draft', 'sent', 'pending', 'paid', 'cancelled'].map(s => (
+                  <DropdownMenuItem key={s} onClick={() => handleStatusChange(s)}>Mark as {fmt(s)}</DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </div>
+
+      <div className="h-10" />
+
+      {/* ── Quick Stats Row ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+        {[
+          { label: 'Subtotal', value: formatUGX(subtotal), icon: DollarSign, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' },
+          { label: 'Tax', value: formatUGX(tax), icon: Receipt, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' },
+          { label: 'Total', value: formatUGX(total), icon: CreditCard, color: 'text-teal-600', bg: 'bg-teal-50', border: 'border-teal-100' },
+          { label: 'Due Date', value: data.due_date ? new Date(data.due_date).toLocaleDateString() : '—', icon: CalendarDays, color: isOverdue ? 'text-red-600' : 'text-slate-600', bg: isOverdue ? 'bg-red-50' : 'bg-slate-50', border: isOverdue ? 'border-red-100' : 'border-slate-100' },
+        ].map(s => (
+          <Card key={s.label} className={`hover:shadow-md transition-all border ${s.border}`}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl ${s.bg} flex items-center justify-center`}>
+                <s.icon className={`w-5 h-5 ${s.color}`} />
+              </div>
+              <div>
+                <p className="text-lg font-bold tracking-tight">{s.value}</p>
+                <p className="text-[11px] text-slate-500 font-medium">{s.label}</p>
+              </div>
+            </CardContent>
           </Card>
-        )}
+        ))}
       </div>
-      <div className="space-y-6">
-        <Card>
-          <CardContent className="p-6 text-center">
-            <Receipt className="w-10 h-10 text-emerald-600 mx-auto mb-3" />
-            <p className="text-2xl font-bold">UGX {Number(data.total_amount).toLocaleString()}</p>
-            {statusBadge(data.status)}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Actions</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            {['draft', 'sent', 'pending', 'paid', 'cancelled'].map(s => (
-              <Button key={s} variant="outline" size="sm" className="w-full text-xs justify-start h-8" disabled={actionLoading} onClick={() => handleStatusChange(s)}>
-                Mark as {fmt(s)}
-              </Button>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+
+      {/* ── Main Content with Tabs ── */}
+      <Tabs defaultValue="details" className="w-full">
+        <TabsList className="w-full justify-start border-b rounded-none bg-transparent h-auto p-0 gap-0">
+          {[
+            { value: 'details', label: 'Details' },
+            { value: 'breakdown', label: 'Amount Breakdown' },
+            { value: 'activity', label: 'Activity' },
+          ].map(tab => (
+            <TabsTrigger key={tab.value} value={tab.value}
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm data-[state=active]:text-emerald-700 data-[state=active]:font-semibold text-slate-500"
+            >{tab.label}</TabsTrigger>
+          ))}
+        </TabsList>
+
+        {/* ── Details Tab ── */}
+        <TabsContent value="details" className="mt-6">
+          <div className="grid lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <Receipt className="w-4 h-4 text-emerald-600" /> Invoice Details
+                </CardTitle></CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
+                    <DetailField label="Invoice Number" value={<span className="font-mono font-bold">{data.invoice_number}</span>} />
+                    <EditableField label="Status" value={data.status} icon={CheckCircle2} onSave={v => handleStatusChange(v)} />
+                    <EditableField label="Due Date" value={data.due_date ? new Date(data.due_date).toISOString().split('T')[0] : ''} icon={CalendarDays} type="date" onSave={v => handleFieldSave('due_date', v)} />
+                    <DetailField label="Issue Date" value={data.issued_at ? new Date(data.issued_at).toLocaleDateString() : data.created_at ? new Date(data.created_at).toLocaleDateString() : '—'} />
+                    <DetailField label="Total Amount" value={<span className="text-lg font-bold">{formatUGX(total)}</span>} />
+                    <EditableField label="Notes" value={(data as any).notes} icon={StickyNote} type="textarea" onSave={v => handleFieldSave('notes', v)} />
+                  </div>
+                </CardContent>
+              </Card>
+              {data.line_items && (
+                <Card>
+                  <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <ListChecks className="w-4 h-4 text-emerald-600" /> Line Items
+                  </CardTitle></CardHeader>
+                  <CardContent><pre className="text-xs bg-slate-50 p-4 rounded-xl overflow-auto max-h-64">{JSON.stringify(data.line_items, null, 2)}</pre></CardContent>
+                </Card>
+              )}
+            </div>
+            <div className="space-y-6">
+              {/* Client Link Card */}
+              <Card className="cursor-pointer hover:shadow-md transition-shadow">
+                <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Client</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-sm font-bold text-emerald-700">
+                      {data.client?.client_type === 'company' ? (data.client?.company_name?.[0] || 'C') : `${data.client?.first_name?.[0] || ''}${data.client?.last_name?.[0] || ''}`}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{clientName}</p>
+                      <p className="text-xs text-slate-400 font-mono">{data.client?.client_ref}</p>
+                    </div>
+                    <ExternalLink className="w-4 h-4 text-slate-300 ml-auto" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* ── Breakdown Tab ── */}
+        <TabsContent value="breakdown" className="mt-6">
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-emerald-600" /> Amount Breakdown
+            </CardTitle></CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="p-4 rounded-xl bg-emerald-50 text-center border border-emerald-100">
+                    <p className="text-xs text-emerald-600 uppercase tracking-wide font-medium">Subtotal</p>
+                    <p className="text-lg font-bold text-emerald-700 mt-1">{formatUGX(subtotal)}</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-amber-50 text-center border border-amber-100">
+                    <p className="text-xs text-amber-600 uppercase tracking-wide font-medium">Tax</p>
+                    <p className="text-lg font-bold text-amber-700 mt-1">{formatUGX(tax)}</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-teal-50 text-center border border-teal-100">
+                    <p className="text-xs text-teal-600 uppercase tracking-wide font-medium">Total</p>
+                    <p className="text-lg font-bold text-teal-700 mt-1">{formatUGX(total)}</p>
+                  </div>
+                </div>
+                {/* Visual breakdown bar */}
+                {total > 0 && (
+                  <div className="space-y-2">
+                    <div className="h-8 rounded-xl overflow-hidden flex bg-slate-100">
+                      <div className="bg-emerald-400 h-full flex items-center justify-center text-[10px] text-white font-bold" style={{ width: `${(subtotal / total) * 100}%` }}>
+                        {subtotal > 0 && 'Subtotal'}
+                      </div>
+                      <div className="bg-amber-400 h-full flex items-center justify-center text-[10px] text-white font-bold" style={{ width: `${(tax / total) * 100}%` }}>
+                        {tax > 0 && 'Tax'}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Payment Status Timeline */}
+          <Card className="mt-6">
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Clock3 className="w-4 h-4 text-slate-500" /> Payment Status
+            </CardTitle></CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2">
+                {paymentSteps.map((step, idx) => (
+                  <div key={step} className="flex items-center gap-2 flex-1">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                      idx <= currentStepIdx ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'
+                    }`}>
+                      {idx <= currentStepIdx ? <Check className="w-4 h-4" /> : idx + 1}
+                    </div>
+                    <span className={`text-xs font-medium ${idx <= currentStepIdx ? 'text-emerald-700' : 'text-slate-400'}`}>{fmt(step)}</span>
+                    {idx < paymentSteps.length - 1 && (
+                      <div className={`flex-1 h-0.5 ${idx < currentStepIdx ? 'bg-emerald-400' : 'bg-slate-200'}`} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Activity Tab ── */}
+        <TabsContent value="activity" className="mt-6">
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Clock3 className="w-4 h-4 text-slate-500" /> Activity
+            </CardTitle></CardHeader>
+            <CardContent>
+              <div className="space-y-0">
+                {[
+                  { label: 'Created', date: data.created_at, icon: Clock3, color: 'text-blue-600 bg-blue-50' },
+                  data.issued_at && { label: 'Issued', date: data.issued_at, icon: Send, color: 'text-amber-600 bg-amber-50' },
+                  data.status === 'paid' && data.updated_at && { label: 'Paid', date: data.updated_at, icon: CheckCircle2, color: 'text-emerald-600 bg-emerald-50' },
+                ].filter(Boolean).map((a: any, idx: number, arr: any[]) => (
+                  <div key={a.label} className="flex items-start gap-3 relative pb-4">
+                    {idx < arr.length - 1 && <div className="absolute left-[15px] top-[34px] w-px h-[calc(100%-14px)] bg-slate-200" />}
+                    <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center ${a.color}`}>
+                      <a.icon className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">{a.label}</p>
+                      <p className="text-[11px] text-slate-400">{new Date(a.date).toLocaleString()}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
@@ -1691,30 +2318,106 @@ function InvoiceDetailPage({ data, onRefresh }: { data: any; onRefresh: () => vo
 
 function QuotationDetailPage({ data }: any) {
   if (!data) return null
+  const clientName = data.client?.company_name || `${data.client?.first_name} ${data.client?.last_name}`
+  const amount = Number(data.amount || data.total_amount || 0)
+  const isExpired = data.valid_until && new Date(data.valid_until) < new Date() && data.status !== 'accepted'
+
   return (
-    <div className="grid lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2">
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Quotation Details</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <DetailField label="Quote Number" value={<span className="font-mono font-bold">{data.quote_number}</span>} />
-              <DetailField label="Total Amount" value={<span className="text-lg font-bold">UGX {Number(data.amount || data.total_amount || 0).toLocaleString()}</span>} />
-              <DetailField label="Status" value={statusBadge(data.status)} />
-              <DetailField label="Client" value={data.client?.company_name || `${data.client?.first_name} ${data.client?.last_name}`} />
-              <DetailField label="Valid Until" value={data.valid_until ? new Date(data.valid_until).toLocaleDateString() : '—'} />
-              <DetailField label="Created" value={new Date(data.created_at).toLocaleDateString()} />
+    <div>
+      {/* ── Hero Header ── */}
+      <div className="relative mb-8">
+        <div className="h-28 bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-500 rounded-2xl shadow-lg" />
+        <div className="absolute bottom-0 left-0 right-0 px-6 translate-y-1/2">
+          <div className="flex items-end justify-between">
+            <div className="flex items-end gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-white shadow-lg flex items-center justify-center border-4 border-white">
+                <DollarSign className="w-7 h-7 text-blue-600" />
+              </div>
+              <div className="pb-1">
+                <h2 className="text-xl font-bold text-slate-900">{data.quote_number}</h2>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {statusBadge(data.status)}
+                  <Badge variant="outline" className="text-xs bg-white/90 backdrop-blur-sm font-mono">{data.quote_number}</Badge>
+                  {isExpired && <Badge className="bg-red-100 text-red-800">Expired</Badge>}
+                </div>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+            <Button className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => toast.info('Convert to invoice coming soon')}>
+              <Receipt className="w-4 h-4 mr-1.5" /> Convert to Invoice
+            </Button>
+          </div>
+        </div>
       </div>
-      <Card>
-        <CardContent className="p-6 text-center">
-          <DollarSign className="w-10 h-10 text-blue-600 mx-auto mb-3" />
-          <p className="text-2xl font-bold">UGX {Number(data.amount || data.total_amount || 0).toLocaleString()}</p>
-          {statusBadge(data.status)}
-        </CardContent>
-      </Card>
+
+      <div className="h-10" />
+
+      {/* ── Quick Stats Row ── */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
+        {[
+          { label: 'Amount', value: formatUGX(amount), icon: DollarSign, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
+          { label: 'Valid Until', value: data.valid_until ? new Date(data.valid_until).toLocaleDateString() : '—', icon: CalendarDays, color: isExpired ? 'text-red-600' : 'text-indigo-600', bg: isExpired ? 'bg-red-50' : 'bg-indigo-50', border: isExpired ? 'border-red-100' : 'border-indigo-100' },
+          { label: 'Status', value: fmt(data.status), icon: CheckCircle2, color: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-100' },
+        ].map(s => (
+          <Card key={s.label} className={`hover:shadow-md transition-all border ${s.border}`}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl ${s.bg} flex items-center justify-center`}>
+                <s.icon className={`w-5 h-5 ${s.color}`} />
+              </div>
+              <div>
+                <p className="text-lg font-bold tracking-tight">{s.value}</p>
+                <p className="text-[11px] text-slate-500 font-medium">{s.label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* ── Main Content ── */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <FileText className="w-4 h-4 text-blue-600" /> Quotation Details
+            </CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <DetailField label="Quote Number" value={<span className="font-mono font-bold">{data.quote_number}</span>} />
+                <DetailField label="Total Amount" value={<span className="text-lg font-bold">{formatUGX(amount)}</span>} />
+                <DetailField label="Status" value={statusBadge(data.status)} />
+                <DetailField label="Valid Until" value={data.valid_until ? new Date(data.valid_until).toLocaleDateString() : '—'} />
+                <DetailField label="Created" value={new Date(data.created_at).toLocaleDateString()} />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        <div className="space-y-6">
+          {/* Client Link Card */}
+          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Client</CardTitle></CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-sm font-bold text-blue-700">
+                  {data.client?.client_type === 'company' ? (data.client?.company_name?.[0] || 'C') : `${data.client?.first_name?.[0] || ''}${data.client?.last_name?.[0] || ''}`}
+                </div>
+                <div>
+                  <p className="text-sm font-medium">{clientName}</p>
+                  <p className="text-xs text-slate-400 font-mono">{data.client?.client_ref}</p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-slate-300 ml-auto" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Clock3 className="w-4 h-4 text-slate-500" /> Timeline
+            </CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <DetailField label="Created" value={new Date(data.created_at).toLocaleString()} />
+              {data.valid_until && <DetailField label="Valid Until" value={new Date(data.valid_until).toLocaleDateString()} />}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1736,54 +2439,169 @@ function DocumentDetailPage({ data, onRefresh }: { data: any; onRefresh: () => v
     try { await deleteRecord(`/api/documents/${data.id}`); onRefresh() }
     catch (e) { console.error(e) } finally { setActionLoading(false) }
   }
+  const clientName = data.client?.company_name || `${data.client?.first_name} ${data.client?.last_name}`
+  const docTypeIcons: Record<string, any> = {
+    survey_report: FileText, title_deed: FileCheck, correspondence: Mail,
+    contract: StickyNote, photo: Eye, map: MapPinned, other: FileText,
+  }
+  const docTypeColors: Record<string, string> = {
+    survey_report: 'bg-blue-50 text-blue-700 border-blue-100',
+    title_deed: 'bg-amber-50 text-amber-700 border-amber-100',
+    correspondence: 'bg-violet-50 text-violet-700 border-violet-100',
+    contract: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    photo: 'bg-pink-50 text-pink-700 border-pink-100',
+    map: 'bg-cyan-50 text-cyan-700 border-cyan-100',
+    other: 'bg-slate-50 text-slate-700 border-slate-100',
+  }
+  const DocIcon = docTypeIcons[data.document_type] || FileText
 
   return (
-    <div className="grid lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 space-y-6">
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Document Information</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <DetailField label="Title" value={<span className="font-semibold">{data.title}</span>} />
-              <DetailField label="Document Type" value={fmt(data.document_type)} />
-              <DetailField label="Verification" value={data.is_verified ? <Badge className="bg-emerald-100 text-emerald-800">Verified</Badge> : <Badge className="bg-amber-100 text-amber-800">Unverified</Badge>} />
-              <DetailField label="Client" value={data.client?.company_name || `${data.client?.first_name} ${data.client?.last_name}`} />
-              <DetailField label="MIME Type" value={<span className="font-mono text-xs">{data.mime_type}</span>} />
-              <DetailField label="File Size" value={data.file_size ? `${(Number(data.file_size) / 1024).toFixed(1)} KB` : '—'} />
-              <DetailField label="File Path" value={<span className="font-mono text-xs break-all">{data.file_path}</span>} />
-              <DetailField label="Uploaded By" value={data.uploaded_by || '—'} />
-              <DetailField label="Created" value={new Date(data.created_at).toLocaleString()} />
+    <div>
+      {/* ── Hero Header ── */}
+      <div className="relative mb-8">
+        <div className="h-28 bg-gradient-to-br from-amber-500 via-orange-500 to-red-500 rounded-2xl shadow-lg" />
+        <div className="absolute bottom-0 left-0 right-0 px-6 translate-y-1/2">
+          <div className="flex items-end justify-between">
+            <div className="flex items-end gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-white shadow-lg flex items-center justify-center border-4 border-white">
+                <DocIcon className="w-7 h-7 text-amber-600" />
+              </div>
+              <div className="pb-1">
+                <h2 className="text-xl font-bold text-slate-900">{data.title}</h2>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <Badge className={docTypeColors[data.document_type] || 'bg-slate-50 text-slate-700'}>
+                    {fmt(data.document_type)}
+                  </Badge>
+                  {data.is_verified ? (
+                    <Badge className="bg-emerald-100 text-emerald-800"><Check className="w-3 h-3 mr-1" />Verified</Badge>
+                  ) : (
+                    <Badge className="bg-amber-100 text-amber-800"><Clock3 className="w-3 h-3 mr-1" />Unverified</Badge>
+                  )}
+                </div>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-        {data.description && (
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Description</CardTitle></CardHeader>
-            <CardContent><p className="text-sm text-slate-600 whitespace-pre-wrap">{data.description}</p></CardContent>
-          </Card>
-        )}
+          </div>
+        </div>
       </div>
-      <div className="space-y-6">
-        <Card>
-          <CardContent className="p-6 text-center">
-            <FileText className="w-10 h-10 text-amber-600 mx-auto mb-3" />
-            <p className="font-semibold">{data.title}</p>
-            {data.is_verified ? <Badge className="bg-emerald-100 text-emerald-800 mt-2">Verified</Badge> : <Badge className="bg-amber-100 text-amber-800 mt-2">Unverified</Badge>}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Actions</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            {!data.is_verified && (
-              <Button className="w-full bg-emerald-600 hover:bg-emerald-700" disabled={actionLoading} onClick={handleVerify}>
-                <Eye className="w-4 h-4 mr-2" /> Verify Document
+
+      <div className="h-10" />
+
+      {/* ── Quick Stats Row ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+        {[
+          { label: 'Type', value: fmt(data.document_type), icon: DocIcon, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' },
+          { label: 'File Size', value: data.file_size ? `${(Number(data.file_size) / 1024).toFixed(1)} KB` : '—', icon: FileText, color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-100' },
+          { label: 'Verification', value: data.is_verified ? 'Verified' : 'Unverified', icon: FileCheck, color: data.is_verified ? 'text-emerald-600' : 'text-amber-600', bg: data.is_verified ? 'bg-emerald-50' : 'bg-amber-50', border: data.is_verified ? 'border-emerald-100' : 'border-amber-100' },
+          { label: 'Created', value: new Date(data.created_at).toLocaleDateString(), icon: CalendarDays, color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-100' },
+        ].map(s => (
+          <Card key={s.label} className={`hover:shadow-md transition-all border ${s.border}`}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl ${s.bg} flex items-center justify-center`}>
+                <s.icon className={`w-5 h-5 ${s.color}`} />
+              </div>
+              <div>
+                <p className="text-lg font-bold tracking-tight">{s.value}</p>
+                <p className="text-[11px] text-slate-500 font-medium">{s.label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* ── Main Content ── */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          {/* Document Information */}
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <FileText className="w-4 h-4 text-amber-600" /> Document Information
+            </CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <DetailField label="Title" value={<span className="font-semibold">{data.title}</span>} />
+                <DetailField label="Document Type" value={<Badge className={docTypeColors[data.document_type] || 'bg-slate-50 text-slate-700'}>{fmt(data.document_type)}</Badge>} />
+                <DetailField label="Verification" value={data.is_verified ? <Badge className="bg-emerald-100 text-emerald-800">Verified</Badge> : <Badge className="bg-amber-100 text-amber-800">Unverified</Badge>} />
+                <DetailField label="MIME Type" value={<span className="font-mono text-xs">{data.mime_type}</span>} />
+                <DetailField label="File Size" value={data.file_size ? `${(Number(data.file_size) / 1024).toFixed(1)} KB` : '—'} />
+                <DetailField label="Uploaded By" value={data.uploaded_by || '—'} />
+              </div>
+              {data.file_path && (
+                <div className="mt-4 p-3 bg-slate-50 rounded-xl">
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">File Path</p>
+                  <p className="font-mono text-xs text-slate-600 break-all">{data.file_path}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {data.description && (
+            <Card>
+              <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Description</CardTitle></CardHeader>
+              <CardContent><p className="text-sm text-slate-600 whitespace-pre-wrap">{data.description}</p></CardContent>
+            </Card>
+          )}
+
+          {/* Verification Workflow Timeline */}
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-amber-600" /> Verification Workflow
+            </CardTitle></CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-1">
+                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-700 shrink-0">
+                    <Upload className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-medium text-blue-700">Uploaded</span>
+                </div>
+                <div className="flex-1 h-0.5 bg-slate-200" />
+                <div className="flex items-center gap-2 flex-1">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${data.is_verified ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                    {data.is_verified ? <Check className="w-4 h-4" /> : <Clock3 className="w-4 h-4" />}
+                  </div>
+                  <span className={`text-xs font-medium ${data.is_verified ? 'text-emerald-700' : 'text-slate-400'}`}>Verified</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+          {/* Client Link Card */}
+          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Client</CardTitle></CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-sm font-bold text-amber-700">
+                  {data.client?.client_type === 'company' ? (data.client?.company_name?.[0] || 'C') : `${data.client?.first_name?.[0] || ''}${data.client?.last_name?.[0] || ''}`}
+                </div>
+                <div>
+                  <p className="text-sm font-medium">{clientName}</p>
+                  <p className="text-xs text-slate-400 font-mono">{data.client?.client_ref}</p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-slate-300 ml-auto" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Actions Card */}
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Settings className="w-4 h-4 text-slate-500" /> Actions
+            </CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              {!data.is_verified && (
+                <Button className="w-full bg-emerald-600 hover:bg-emerald-700" disabled={actionLoading} onClick={handleVerify}>
+                  <Eye className="w-4 h-4 mr-2" /> Verify Document
+                </Button>
+              )}
+              <Button variant="destructive" size="sm" className="w-full" disabled={actionLoading} onClick={handleDelete}>
+                <Trash2 className="w-4 h-4 mr-2" /> Delete Document
               </Button>
-            )}
-            <Button variant="destructive" size="sm" className="w-full" disabled={actionLoading} onClick={handleDelete}>
-              <Trash2 className="w-4 h-4 mr-2" /> Delete Document
-            </Button>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )
@@ -1805,58 +2623,185 @@ function CommunicationDetailPage({ data, onRefresh }: { data: any; onRefresh: ()
     try { await patchRecord(`/api/communications/${data.id}`, { status: 'delivered' }); onRefresh() }
     catch (e) { console.error(e) } finally { setActionLoading(false) }
   }
+  const clientName = data.client?.company_name || `${data.client?.first_name} ${data.client?.last_name}`
+  const isOutbound = data.direction === 'outbound'
+  const channelIcons: Record<string, any> = { sms: Smartphone, email: Mail, whatsapp: MessageCircle }
+  const channelColors: Record<string, string> = { sms: 'text-blue-600', email: 'text-violet-600', whatsapp: 'text-emerald-600' }
+  const ChannelIcon = channelIcons[data.channel] || MessageSquare
+  const deliverySteps = ['queued', 'sent', 'delivered', 'read']
+  const currentDeliveryIdx = deliverySteps.indexOf(data.status)
 
   return (
-    <div className="grid lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 space-y-6">
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Message Details</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <DetailField label="Subject" value={data.subject || 'No Subject'} />
-              <DetailField label="Channel" value={fmt(data.channel)} />
-              <DetailField label="Direction" value={<Badge className={data.direction === 'outbound' ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'}>{fmt(data.direction)}</Badge>} />
-              <DetailField label="Client" value={data.client?.company_name || `${data.client?.first_name} ${data.client?.last_name}`} />
-              <DetailField label="Status" value={statusBadge(data.status)} />
-              <DetailField label="Sent At" value={data.sent_at ? new Date(data.sent_at).toLocaleString() : '—'} />
+    <div>
+      {/* ── Hero Header ── */}
+      <div className="relative mb-8">
+        <div className="h-28 bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 rounded-2xl shadow-lg" />
+        <div className="absolute bottom-0 left-0 right-0 px-6 translate-y-1/2">
+          <div className="flex items-end justify-between">
+            <div className="flex items-end gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-white shadow-lg flex items-center justify-center border-4 border-white">
+                <ChannelIcon className={`w-7 h-7 ${channelColors[data.channel] || 'text-violet-600'}`} />
+              </div>
+              <div className="pb-1">
+                <h2 className="text-xl font-bold text-slate-900">{data.subject || 'No Subject'}</h2>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {statusBadge(data.status)}
+                  <Badge variant="outline" className="text-xs bg-white/90 backdrop-blur-sm">
+                    <ChannelIcon className={`w-3 h-3 mr-1 ${channelColors[data.channel] || ''}`} />{fmt(data.channel)}
+                  </Badge>
+                  <Badge className={isOutbound ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'}>
+                    {isOutbound ? <ArrowUpRight className="w-3 h-3 mr-1" /> : <ArrowDownLeft className="w-3 h-3 mr-1" />}
+                    {fmt(data.direction)}
+                  </Badge>
+                </div>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-        {data.body && (
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Message Body</CardTitle></CardHeader>
-            <CardContent><div className="text-sm bg-slate-50 p-6 rounded-xl max-h-96 overflow-y-auto whitespace-pre-wrap">{data.body}</div></CardContent>
-          </Card>
-        )}
+          </div>
+        </div>
       </div>
-      <div className="space-y-6">
-        <Card>
-          <CardContent className="p-6 text-center">
-            <MessageSquare className="w-10 h-10 text-violet-600 mx-auto mb-3" />
-            <p className="font-semibold">{fmt(data.channel)}</p>
-            {statusBadge(data.status)}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Actions</CardTitle></CardHeader>
-          <CardContent className="space-y-2">
-            {data.status === 'queued' && (
-              <Button className="w-full bg-blue-600 hover:bg-blue-700" disabled={actionLoading} onClick={handleMarkRead}>
-                <Send className="w-4 h-4 mr-2" /> Send Message
-              </Button>
-            )}
-            {data.status === 'sent' && (
-              <Button className="w-full bg-emerald-600 hover:bg-emerald-700" disabled={actionLoading} onClick={handleMarkDelivered}>
-                <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Delivered
-              </Button>
-            )}
-            {(data.status === 'pending' || data.status === 'received') && (
-              <Button className="w-full bg-emerald-600 hover:bg-emerald-700" disabled={actionLoading} onClick={handleMarkRead}>
-                <Eye className="w-4 h-4 mr-2" /> Mark Read
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+
+      <div className="h-10" />
+
+      {/* ── Quick Stats Row ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+        {[
+          { label: 'Channel', value: fmt(data.channel), icon: ChannelIcon, color: channelColors[data.channel] || 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-100' },
+          { label: 'Direction', value: fmt(data.direction), icon: isOutbound ? ArrowUpRight : ArrowDownLeft, color: isOutbound ? 'text-blue-600' : 'text-emerald-600', bg: isOutbound ? 'bg-blue-50' : 'bg-emerald-50', border: isOutbound ? 'border-blue-100' : 'border-emerald-100' },
+          { label: 'Status', value: fmt(data.status), icon: CheckCircle2, color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-100' },
+          { label: 'Sent At', value: data.sent_at ? new Date(data.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—', icon: Clock3, color: 'text-fuchsia-600', bg: 'bg-fuchsia-50', border: 'border-fuchsia-100' },
+        ].map(s => (
+          <Card key={s.label} className={`hover:shadow-md transition-all border ${s.border}`}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl ${s.bg} flex items-center justify-center`}>
+                <s.icon className={`w-5 h-5 ${s.color}`} />
+              </div>
+              <div>
+                <p className="text-lg font-bold tracking-tight">{s.value}</p>
+                <p className="text-[11px] text-slate-500 font-medium">{s.label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* ── Main Content ── */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          {/* Chat-style Message Body */}
+          {data.body && (
+            <Card>
+              <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-violet-600" /> Message Body
+              </CardTitle></CardHeader>
+              <CardContent>
+                <div className="flex flex-col gap-3">
+                  <div className={`max-w-[85%] ${isOutbound ? 'self-end' : 'self-start'}`}>
+                    <div className={`rounded-2xl px-4 py-3 ${
+                      isOutbound
+                        ? 'bg-violet-100 text-violet-900 rounded-br-md'
+                        : 'bg-slate-100 text-slate-800 rounded-bl-md'
+                    }`}>
+                      <p className="text-sm whitespace-pre-wrap">{data.body}</p>
+                    </div>
+                    <div className={`flex items-center gap-2 mt-1 ${isOutbound ? 'justify-end' : 'justify-start'}`}>
+                      <span className="text-[10px] text-slate-400">
+                        {isOutbound ? 'Outbound' : 'Inbound'} · {data.sent_at ? new Date(data.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending'}
+                      </span>
+                      {isOutbound && currentDeliveryIdx >= 2 && (
+                        <CheckCircle2 className="w-3 h-3 text-violet-400" />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Delivery Status Timeline */}
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Clock3 className="w-4 h-4 text-slate-500" /> Delivery Status
+            </CardTitle></CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-1">
+                {deliverySteps.map((step, idx) => (
+                  <div key={step} className="flex items-center gap-1 flex-1">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                      idx <= currentDeliveryIdx ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-400'
+                    }`}>
+                      {idx <= currentDeliveryIdx ? <Check className="w-3.5 h-3.5" /> : idx + 1}
+                    </div>
+                    <span className={`text-[10px] font-medium ${idx <= currentDeliveryIdx ? 'text-violet-700' : 'text-slate-400'}`}>{fmt(step)}</span>
+                    {idx < deliverySteps.length - 1 && (
+                      <div className={`flex-1 h-0.5 ${idx < currentDeliveryIdx ? 'bg-violet-400' : 'bg-slate-200'}`} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Message Details */}
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <FileText className="w-4 h-4 text-violet-600" /> Message Details
+            </CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <DetailField label="Subject" value={data.subject || 'No Subject'} />
+                <DetailField label="Channel" value={fmt(data.channel)} />
+                <DetailField label="Direction" value={<Badge className={isOutbound ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'}>{fmt(data.direction)}</Badge>} />
+                <DetailField label="Status" value={statusBadge(data.status)} />
+                <DetailField label="Sent At" value={data.sent_at ? new Date(data.sent_at).toLocaleString() : '—'} />
+                <DetailField label="Created" value={new Date(data.created_at).toLocaleString()} />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+          {/* Client Link Card */}
+          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Client</CardTitle></CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center text-sm font-bold text-violet-700">
+                  {data.client?.client_type === 'company' ? (data.client?.company_name?.[0] || 'C') : `${data.client?.first_name?.[0] || ''}${data.client?.last_name?.[0] || ''}`}
+                </div>
+                <div>
+                  <p className="text-sm font-medium">{clientName}</p>
+                  <p className="text-xs text-slate-400 font-mono">{data.client?.client_ref}</p>
+                </div>
+                <ExternalLink className="w-4 h-4 text-slate-300 ml-auto" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Actions Card */}
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Settings className="w-4 h-4 text-slate-500" /> Actions
+            </CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              {data.status === 'queued' && (
+                <Button className="w-full bg-blue-600 hover:bg-blue-700" disabled={actionLoading} onClick={handleMarkRead}>
+                  <Send className="w-4 h-4 mr-2" /> Send Message
+                </Button>
+              )}
+              {data.status === 'sent' && (
+                <Button className="w-full bg-emerald-600 hover:bg-emerald-700" disabled={actionLoading} onClick={handleMarkDelivered}>
+                  <CheckCircle2 className="w-4 h-4 mr-2" /> Mark Delivered
+                </Button>
+              )}
+              {(data.status === 'pending' || data.status === 'received') && (
+                <Button className="w-full bg-emerald-600 hover:bg-emerald-700" disabled={actionLoading} onClick={handleMarkRead}>
+                  <Eye className="w-4 h-4 mr-2" /> Mark Read
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )
@@ -1868,66 +2813,171 @@ function CommunicationDetailPage({ data, onRefresh }: { data: any; onRefresh: ()
 
 function ApprovalDetailPage({ data, onRefresh }: { data: any; onRefresh: () => void }) {
   const [actionLoading, setActionLoading] = useState(false)
+  const [notes, setNotes] = useState(data.notes || '')
   const handleApprove = async () => {
     setActionLoading(true)
-    try { await patchRecord(`/api/approvals/${data.id}`, { status: 'approved', approved_by: 'current_user' }); onRefresh() }
+    try { await patchRecord(`/api/approvals/${data.id}`, { status: 'approved', approved_by: 'current_user', notes }); onRefresh() }
     catch (e) { console.error(e) } finally { setActionLoading(false) }
   }
   const handleDefer = async () => {
     setActionLoading(true)
-    try { await patchRecord(`/api/approvals/${data.id}`, { status: 'deferred' }); onRefresh() }
+    try { await patchRecord(`/api/approvals/${data.id}`, { status: 'deferred', notes }); onRefresh() }
     catch (e) { console.error(e) } finally { setActionLoading(false) }
   }
   const handleReject = async () => {
     setActionLoading(true)
-    try { await patchRecord(`/api/approvals/${data.id}`, { status: 'rejected' }); onRefresh() }
+    try { await patchRecord(`/api/approvals/${data.id}`, { status: 'rejected', notes }); onRefresh() }
     catch (e) { console.error(e) } finally { setActionLoading(false) }
   }
 
+  const statusColors: Record<string, string> = {
+    pending: 'text-amber-700 bg-amber-50 border-amber-200',
+    approved: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+    deferred: 'text-blue-700 bg-blue-50 border-blue-200',
+    rejected: 'text-red-700 bg-red-50 border-red-200',
+  }
+
   return (
-    <div className="grid lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 space-y-6">
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Approval Step Details</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <DetailField label="Step Name" value={<span className="font-semibold">{fmt(data.step_name)}</span>} />
-              <DetailField label="Order" value={`Step ${data.step_order}`} />
-              <DetailField label="Status" value={statusBadge(data.status)} />
-              <DetailField label="Approver Role" value={data.approver_role || '—'} />
-              <DetailField label="Assigned To" value={data.assigned_to || '—'} />
-              <DetailField label="Project" value={data.surveyProject?.title || '—'} />
-              {data.approved_by && <DetailField label="Approved By" value={data.approved_by} />}
-              {data.approved_at && <DetailField label="Approved At" value={new Date(data.approved_at).toLocaleString()} />}
-              {data.notes && <div className="col-span-2 md:col-span-3"><DetailField label="Notes" value={data.notes} /></div>}
+    <div>
+      {/* ── Hero Header ── */}
+      <div className="relative mb-8">
+        <div className="h-28 bg-gradient-to-br from-amber-400 via-yellow-500 to-orange-500 rounded-2xl shadow-lg" />
+        <div className="absolute bottom-0 left-0 right-0 px-6 translate-y-1/2">
+          <div className="flex items-end justify-between">
+            <div className="flex items-end gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-white shadow-lg flex items-center justify-center border-4 border-white">
+                <Shield className="w-7 h-7 text-amber-600" />
+              </div>
+              <div className="pb-1">
+                <h2 className="text-xl font-bold text-slate-900">{fmt(data.step_name)}</h2>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {statusBadge(data.status)}
+                  <Badge variant="outline" className="text-xs bg-white/90 backdrop-blur-sm">
+                    Step {data.step_order}
+                  </Badge>
+                  {data.approver_role && <Badge variant="outline" className="text-xs bg-white/90 backdrop-blur-sm">{data.approver_role}</Badge>}
+                </div>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
-      <div className="space-y-6">
-        <Card>
-          <CardContent className="p-6 text-center">
-            <ShieldCheck className="w-10 h-10 text-amber-600 mx-auto mb-3" />
-            <p className="font-semibold">{fmt(data.step_name)}</p>
-            {statusBadge(data.status)}
-          </CardContent>
-        </Card>
-        {data.status === 'pending' && (
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Actions</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              <Button className="w-full bg-emerald-600 hover:bg-emerald-700" disabled={actionLoading} onClick={handleApprove}>
-                <CheckCircle2 className="w-4 h-4 mr-2" /> Approve
-              </Button>
-              <Button variant="outline" className="w-full" disabled={actionLoading} onClick={handleDefer}>
-                <Clock3 className="w-4 h-4 mr-2" /> Defer
-              </Button>
-              <Button variant="destructive" className="w-full" disabled={actionLoading} onClick={handleReject}>
-                <X className="w-4 h-4 mr-2" /> Reject
-              </Button>
+
+      <div className="h-10" />
+
+      {/* ── Quick Stats Row ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+        {[
+          { label: 'Step', value: `#${data.step_order}`, icon: CircleDot, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' },
+          { label: 'Status', value: fmt(data.status), icon: ShieldCheck, color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-100' },
+          { label: 'Approver', value: data.assigned_to || data.approver_role || '—', icon: User, color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-100' },
+          { label: 'Project', value: data.surveyProject?.title ? data.surveyProject.title.split(' ').slice(0, 3).join(' ') : '—', icon: MapPin, color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-100' },
+        ].map(s => (
+          <Card key={s.label} className={`hover:shadow-md transition-all border ${s.border}`}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl ${s.bg} flex items-center justify-center`}>
+                <s.icon className={`w-5 h-5 ${s.color}`} />
+              </div>
+              <div>
+                <p className="text-lg font-bold tracking-tight truncate max-w-[140px]">{s.value}</p>
+                <p className="text-[11px] text-slate-500 font-medium">{s.label}</p>
+              </div>
             </CardContent>
           </Card>
-        )}
+        ))}
+      </div>
+
+      {/* ── Main Content ── */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          {/* Approval Step Details */}
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-amber-600" /> Approval Step Details
+            </CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <DetailField label="Step Name" value={<span className="font-semibold">{fmt(data.step_name)}</span>} />
+                <DetailField label="Order" value={`Step ${data.step_order}`} />
+                <DetailField label="Status" value={statusBadge(data.status)} />
+                <DetailField label="Approver Role" value={data.approver_role || '—'} />
+                <DetailField label="Assigned To" value={data.assigned_to || '—'} />
+                {data.approved_by && <DetailField label="Approved By" value={data.approved_by} />}
+                {data.approved_at && <DetailField label="Approved At" value={new Date(data.approved_at).toLocaleString()} />}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Notes Section */}
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <StickyNote className="w-4 h-4 text-amber-600" /> Notes
+            </CardTitle></CardHeader>
+            <CardContent>
+              <Textarea
+                className="text-sm"
+                placeholder="Add approval comments..."
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                rows={3}
+              />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+          {/* Project Link Card */}
+          {data.surveyProject && (
+            <Card className="cursor-pointer hover:shadow-md transition-shadow">
+              <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Project</CardTitle></CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-sm font-bold text-blue-700">
+                    <MapPin className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">{data.surveyProject.title}</p>
+                    <p className="text-xs text-slate-400 font-mono">{data.surveyProject.project_ref}</p>
+                  </div>
+                  <ExternalLink className="w-4 h-4 text-slate-300 ml-auto" />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Approver Info Card */}
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <User className="w-4 h-4 text-slate-500" /> Approver Info
+            </CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <DetailField label="Role" value={data.approver_role || '—'} />
+              <DetailField label="Assigned To" value={data.assigned_to || '—'} />
+              <DetailField label="Created" value={new Date(data.created_at).toLocaleString()} />
+            </CardContent>
+          </Card>
+
+          {/* Action Buttons */}
+          {data.status === 'pending' && (
+            <Card>
+              <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Settings className="w-4 h-4 text-slate-500" /> Actions
+              </CardTitle></CardHeader>
+              <CardContent className="space-y-2">
+                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-10" disabled={actionLoading} onClick={handleApprove}>
+                  <CheckCircle2 className="w-4 h-4 mr-2" /> Approve
+                </Button>
+                <Button variant="outline" className="w-full h-10 border-amber-300 text-amber-700 hover:bg-amber-50" disabled={actionLoading} onClick={handleDefer}>
+                  <Pause className="w-4 h-4 mr-2" /> Defer
+                </Button>
+                <Button variant="destructive" className="w-full h-10" disabled={actionLoading} onClick={handleReject}>
+                  <X className="w-4 h-4 mr-2" /> Reject
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -1939,34 +2989,136 @@ function ApprovalDetailPage({ data, onRefresh }: { data: any; onRefresh: () => v
 
 function DomainEventDetailPage({ data }: any) {
   if (!data) return null
+  const payloadEntries = data.payload ? (typeof data.payload === 'object' ? Object.entries(data.payload) : []) : []
+
   return (
-    <div className="grid lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 space-y-6">
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Event Details</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <DetailField label="Event Type" value={<span className="font-semibold">{fmt(data.event_type)}</span>} />
-              <DetailField label="Aggregate" value={fmt(data.aggregate)} />
-              <DetailField label="Aggregate ID" value={<span className="font-mono text-xs">{data.aggregate_id}</span>} />
-              <DetailField label="Created" value={new Date(data.created_at).toLocaleString()} />
+    <div>
+      {/* ── Hero Header ── */}
+      <div className="relative mb-8">
+        <div className="h-28 bg-gradient-to-br from-slate-500 via-gray-500 to-zinc-600 rounded-2xl shadow-lg" />
+        <div className="absolute bottom-0 left-0 right-0 px-6 translate-y-1/2">
+          <div className="flex items-end justify-between">
+            <div className="flex items-end gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-white shadow-lg flex items-center justify-center border-4 border-white">
+                <ScrollText className="w-7 h-7 text-slate-600" />
+              </div>
+              <div className="pb-1">
+                <h2 className="text-xl font-bold text-slate-900">{fmt(data.event_type)}</h2>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <Badge variant="outline" className="text-xs bg-white/90 backdrop-blur-sm">{fmt(data.aggregate)}</Badge>
+                  <Badge variant="outline" className="text-xs bg-white/90 backdrop-blur-sm font-mono">{data.aggregate_id?.slice(0, 8)}…</Badge>
+                </div>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-        {data.payload && (
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Payload</CardTitle></CardHeader>
-            <CardContent><pre className="text-xs bg-slate-50 p-4 rounded-xl overflow-auto max-h-96">{JSON.stringify(data.payload, null, 2)}</pre></CardContent>
-          </Card>
-        )}
+          </div>
+        </div>
       </div>
-      <Card>
-        <CardContent className="p-6 text-center">
-          <ScrollText className="w-10 h-10 text-slate-500 mx-auto mb-3" />
-          <p className="font-semibold">{fmt(data.event_type)}</p>
-          <p className="text-xs text-slate-400 mt-1">{fmt(data.aggregate)}</p>
-        </CardContent>
-      </Card>
+
+      <div className="h-10" />
+
+      {/* ── Quick Stats Row ── */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
+        {[
+          { label: 'Event Type', value: fmt(data.event_type), icon: ScrollText, color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-100' },
+          { label: 'Aggregate', value: fmt(data.aggregate), icon: Database, color: 'text-gray-600', bg: 'bg-gray-50', border: 'border-gray-100' },
+          { label: 'Created', value: new Date(data.created_at).toLocaleString(), icon: Clock3, color: 'text-zinc-600', bg: 'bg-zinc-50', border: 'border-zinc-100' },
+        ].map(s => (
+          <Card key={s.label} className={`hover:shadow-md transition-all border ${s.border}`}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl ${s.bg} flex items-center justify-center`}>
+                <s.icon className={`w-5 h-5 ${s.color}`} />
+              </div>
+              <div>
+                <p className="text-lg font-bold tracking-tight">{s.value}</p>
+                <p className="text-[11px] text-slate-500 font-medium">{s.label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* ── Main Content ── */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          {/* Event Metadata */}
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <FileText className="w-4 h-4 text-slate-600" /> Event Metadata
+            </CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <DetailField label="Event Type" value={<span className="font-semibold">{fmt(data.event_type)}</span>} />
+                <DetailField label="Aggregate" value={fmt(data.aggregate)} />
+                <DetailField label="Aggregate ID" value={<span className="font-mono text-xs">{data.aggregate_id}</span>} />
+                <DetailField label="Created" value={new Date(data.created_at).toLocaleString()} />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Payload as Key-Value Table */}
+          {payloadEntries.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Database className="w-4 h-4 text-slate-600" /> Event Payload
+              </CardTitle></CardHeader>
+              <CardContent>
+                <div className="rounded-xl border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50">
+                        <TableHead className="text-xs h-9">Key</TableHead>
+                        <TableHead className="text-xs h-9">Value</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {payloadEntries.map(([key, val]) => (
+                        <TableRow key={String(key)}>
+                          <TableCell className="text-xs font-medium text-slate-700 py-2">{fmt(String(key))}</TableCell>
+                          <TableCell className="text-xs text-slate-600 py-2 font-mono">
+                            {typeof val === 'object' && val !== null ? JSON.stringify(val) : String(val ?? '—')}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Fallback: raw JSON if no parsed entries */}
+          {data.payload && payloadEntries.length === 0 && (
+            <Card>
+              <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Database className="w-4 h-4 text-slate-600" /> Event Payload
+              </CardTitle></CardHeader>
+              <CardContent><pre className="text-xs bg-slate-50 p-4 rounded-xl overflow-auto max-h-96">{JSON.stringify(data.payload, null, 2)}</pre></CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+          <Card>
+            <CardContent className="p-6 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
+                <ScrollText className="w-8 h-8 text-slate-500" />
+              </div>
+              <p className="font-semibold">{fmt(data.event_type)}</p>
+              <p className="text-xs text-slate-400 mt-1">{fmt(data.aggregate)}</p>
+              <p className="text-[10px] text-slate-300 font-mono mt-2">{data.aggregate_id}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Clock3 className="w-4 h-4 text-slate-500" /> Timeline
+            </CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <DetailField label="Created" value={new Date(data.created_at).toLocaleString()} />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1977,59 +3129,154 @@ function DomainEventDetailPage({ data }: any) {
 
 function OrganizationDetailPage({ data }: any) {
   if (!data) return null
+  const settingsEntries = data.settings ? (typeof data.settings === 'object' ? Object.entries(data.settings) : []) : []
+
   return (
-    <div className="grid lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 space-y-6">
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Organization Details</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <DetailField label="Name" value={<span className="font-semibold">{data.name}</span>} />
-              <DetailField label="Slug" value={<span className="font-mono">{data.slug}</span>} />
-              <DetailField label="Status" value={data.is_active ? <Badge className="bg-emerald-100 text-emerald-800">Active</Badge> : <Badge className="bg-slate-100 text-slate-600">Inactive</Badge>} />
-              <DetailField label="Clients" value={data._count?.clients ?? '—'} />
-              <DetailField label="Workflows" value={data._count?.workflowDefinitions ?? '—'} />
-              <DetailField label="Created" value={new Date(data.created_at).toLocaleDateString()} />
+    <div>
+      {/* ── Hero Header ── */}
+      <div className="relative mb-8">
+        <div className="h-28 bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 rounded-2xl shadow-lg" />
+        <div className="absolute bottom-0 left-0 right-0 px-6 translate-y-1/2">
+          <div className="flex items-end justify-between">
+            <div className="flex items-end gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-white shadow-lg flex items-center justify-center border-4 border-white">
+                <Building2 className="w-7 h-7 text-emerald-600" />
+              </div>
+              <div className="pb-1">
+                <h2 className="text-xl font-bold text-slate-900">{data.name}</h2>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {data.is_active ? <Badge className="bg-emerald-100 text-emerald-800">Active</Badge> : <Badge className="bg-slate-100 text-slate-600">Inactive</Badge>}
+                  <Badge variant="outline" className="text-xs bg-white/90 backdrop-blur-sm font-mono">{data.slug}</Badge>
+                </div>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-        {data.branches && data.branches.length > 0 && (
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold">Branches ({data.branches.length})</CardTitle></CardHeader>
-            <CardContent>
-              <div className="divide-y">
-                {data.branches.map((b: any) => (
-                  <div key={b.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${b.is_head_office ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-                        {b.is_head_office ? 'HQ' : b.slug?.[0]?.toUpperCase() || 'B'}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{b.name}</p>
-                        <p className="text-xs text-slate-400 font-mono">{b.slug}</p>
-                      </div>
-                    </div>
-                    {b.is_active ? <Badge className="bg-emerald-100 text-emerald-800 text-[10px]">Active</Badge> : <Badge className="bg-slate-100 text-slate-600 text-[10px]">Inactive</Badge>}
-                  </div>
-                ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="h-10" />
+
+      {/* ── Quick Stats Row ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+        {[
+          { label: 'Clients', value: data._count?.clients ?? '—', icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' },
+          { label: 'Workflows', value: data._count?.workflowDefinitions ?? '—', icon: GitBranch, color: 'text-teal-600', bg: 'bg-teal-50', border: 'border-teal-100' },
+          { label: 'Branches', value: data.branches?.length ?? data._count?.branches ?? '—', icon: Building, color: 'text-cyan-600', bg: 'bg-cyan-50', border: 'border-cyan-100' },
+          { label: 'Status', value: data.is_active ? 'Active' : 'Inactive', icon: Activity, color: data.is_active ? 'text-emerald-600' : 'text-slate-500', bg: data.is_active ? 'bg-emerald-50' : 'bg-slate-50', border: data.is_active ? 'border-emerald-100' : 'border-slate-100' },
+        ].map(s => (
+          <Card key={s.label} className={`hover:shadow-md transition-all border ${s.border}`}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl ${s.bg} flex items-center justify-center`}>
+                <s.icon className={`w-5 h-5 ${s.color}`} />
+              </div>
+              <div>
+                <p className="text-lg font-bold tracking-tight">{s.value}</p>
+                <p className="text-[11px] text-slate-500 font-medium">{s.label}</p>
               </div>
             </CardContent>
           </Card>
-        )}
+        ))}
       </div>
-      <Card>
-        <CardContent className="p-6 text-center">
-          <Building2 className="w-10 h-10 text-emerald-600 mx-auto mb-3" />
-          <p className="font-semibold">{data.name}</p>
-          <p className="text-xs text-slate-400 font-mono mt-1">{data.slug}</p>
-          {data.settings && (
-            <div className="mt-4 text-left space-y-1">
-              {data.settings.country && <p className="text-xs text-slate-500">Country: {data.settings.country}</p>}
-              {data.settings.currency && <p className="text-xs text-slate-500">Currency: {data.settings.currency}</p>}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+
+      {/* ── Main Content with Tabs ── */}
+      <Tabs defaultValue="details" className="w-full">
+        <TabsList className="w-full justify-start border-b rounded-none bg-transparent h-auto p-0 gap-0">
+          {[
+            { value: 'details', label: 'Details' },
+            { value: 'branches', label: `Branches (${data.branches?.length ?? 0})` },
+            { value: 'settings', label: 'Settings' },
+          ].map(tab => (
+            <TabsTrigger key={tab.value} value={tab.value}
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5 text-sm data-[state=active]:text-emerald-700 data-[state=active]:font-semibold text-slate-500"
+            >{tab.label}</TabsTrigger>
+          ))}
+        </TabsList>
+
+        {/* ── Details Tab ── */}
+        <TabsContent value="details" className="mt-6">
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-emerald-600" /> Organization Details
+            </CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <DetailField label="Name" value={<span className="font-semibold">{data.name}</span>} />
+                <DetailField label="Slug" value={<span className="font-mono">{data.slug}</span>} />
+                <DetailField label="Status" value={data.is_active ? <Badge className="bg-emerald-100 text-emerald-800">Active</Badge> : <Badge className="bg-slate-100 text-slate-600">Inactive</Badge>} />
+                <DetailField label="Clients" value={data._count?.clients ?? '—'} />
+                <DetailField label="Workflows" value={data._count?.workflowDefinitions ?? '—'} />
+                <DetailField label="Created" value={new Date(data.created_at).toLocaleDateString()} />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Branches Tab ── */}
+        <TabsContent value="branches" className="mt-6">
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Building className="w-4 h-4 text-emerald-600" /> Branches ({data.branches?.length ?? 0})
+            </CardTitle></CardHeader>
+            <CardContent>
+              {data.branches && data.branches.length > 0 ? (
+                <div className="space-y-3">
+                  {data.branches.map((b: any) => (
+                    <div key={b.id} className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${b.is_head_office ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
+                        {b.is_head_office ? 'HQ' : b.slug?.[0]?.toUpperCase() || 'B'}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">{b.name}</p>
+                          {b.is_head_office && <Badge className="bg-emerald-100 text-emerald-800 text-[10px]">Head Office</Badge>}
+                        </div>
+                        <p className="text-xs text-slate-400 font-mono mt-0.5">{b.slug}</p>
+                      </div>
+                      {b.is_active ? <Badge className="bg-emerald-100 text-emerald-800 text-[10px]">Active</Badge> : <Badge className="bg-slate-100 text-slate-600 text-[10px]">Inactive</Badge>}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Building className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm text-slate-400">No branches defined</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Settings Tab ── */}
+        <TabsContent value="settings" className="mt-6">
+          <Card>
+            <CardHeader className="pb-3"><CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Settings className="w-4 h-4 text-emerald-600" /> Organization Settings
+            </CardTitle></CardHeader>
+            <CardContent>
+              {settingsEntries.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {settingsEntries.map(([key, val]) => (
+                    <div key={String(key)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                        <Tag className="w-4 h-4 text-emerald-600" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wide">{fmt(String(key))}</p>
+                        <p className="text-sm font-medium">{typeof val === 'object' ? JSON.stringify(val) : String(val ?? '—')}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Settings className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm text-slate-400">No settings configured</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
