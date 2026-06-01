@@ -52,3 +52,19 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# Database config (contains credentials)
+db-config.json
+
+# Python
+__pycache__/
+*.pyc
+micro-server.log
+server.pid
+
+# Laravel sub-project
+gws-platform/
+
+# SQLite db
+/db/
+*.db
