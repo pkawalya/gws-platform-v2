@@ -1,0 +1,13 @@
+{
+  "databaseUrl": "",
+  "host": "",
+  "port": 5432,
+  "database": "",
+  "user": "",
+  "password": "",
+  "ssl": true,
+  "maxPoolSize": 1,
+  "connectionTimeoutMs": 10000,
+  "idleTimeoutMs": 30000,
+  "configured": false
+}

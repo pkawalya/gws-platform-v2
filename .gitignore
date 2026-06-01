@@ -30,12 +30,8 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
-
 # vercel
 .vercel
-
 
 # typescript
 *.tsbuildinfo
@@ -53,18 +49,9 @@ server.log
 # Skills directory
 /skills/
 
-# Database config (contains credentials)
-db-config.json
-
-# Python
-__pycache__/
-*.pyc
+# Python runtime artifacts (keep source)
 micro-server.log
 server.pid
 
 # Laravel sub-project
 gws-platform/
-
-# SQLite db
-/db/
-*.db
