@@ -13,7 +13,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { ChevronRight, Phone, Mail, Plus, Search, SlidersHorizontal, Users, Inbox, Filter, Download, FileSpreadsheet, ScanLine, CheckCircle2, Loader2 } from 'lucide-react'
+import { ChevronRight, Phone, Mail, Plus, Search, SlidersHorizontal, Users, Inbox, Filter, Download, FileSpreadsheet, ScanLine, CheckCircle2, Loader2, FileText, X } from 'lucide-react'
+import { FileUpload, FileThumbnail, FileDownloadButton, type UploadedFile } from './file-upload'
 import { fmt, statusBadge, getRegions, getDistrictsForRegion, getCountiesForDistrict, getSubcountiesForCounty, getParishesForSubcounty, findRegionForDistrict } from './constants'
 import { SortableHeader } from './helpers'
 import { DataTablePagination } from './data-table-pagination'
@@ -47,6 +48,8 @@ export function ClientsPage({ clients, search, openDetail, selectedIds, toggleSe
   const [visibleColumns, setVisibleColumns] = useState<VisibleColumns>({ ref: true, district: true, contact: false, status: true, projects: true })
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'success' | 'error'>('idle')
+  const [pendingDocuments, setPendingDocuments] = useState<Array<UploadedFile & { doc_type: string }>>([])
+  const [isCreating, setIsCreating] = useState(false)
 
   // Scan National ID handler
   const handleScanID = () => {
@@ -155,8 +158,25 @@ export function ClientsPage({ clients, search, openDetail, selectedIds, toggleSe
     return Object.keys(errors).length === 0
   }
 
+  const handleDocumentUpload = (files: UploadedFile[]) => {
+    const newDocs = files.map(f => ({
+      ...f,
+      doc_type: f.mime_type.startsWith('image/') ? 'identification' : f.mime_type.includes('pdf') ? 'title_deed' : 'agreement',
+    }))
+    setPendingDocuments(prev => [...prev, ...newDocs])
+  }
+
+  const removePendingDocument = (index: number) => {
+    setPendingDocuments(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const updatePendingDocType = (index: number, docType: string) => {
+    setPendingDocuments(prev => prev.map((d, i) => i === index ? { ...d, doc_type: docType } : d))
+  }
+
   const handleCreate = async () => {
     if (!validateForm()) return
+    setIsCreating(true)
     try {
       const res = await fetch('/api/clients', {
         method: 'POST',
@@ -164,17 +184,44 @@ export function ClientsPage({ clients, search, openDetail, selectedIds, toggleSe
         body: JSON.stringify(createForm),
       })
       if (res.ok) {
+        const client = await res.json()
+        const clientId = client.id
+
+        // Create document records for uploaded files
+        if (pendingDocuments.length > 0 && clientId) {
+          await Promise.all(
+            pendingDocuments.map(doc =>
+              fetch('/api/documents', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  title: doc.name.replace(/\.[^/.]+$/, ''),
+                  document_type: doc.doc_type,
+                  client_id: Number(clientId),
+                  file_path: doc.path,
+                  mime_type: doc.mime_type,
+                  file_size: doc.size,
+                }),
+              })
+            )
+          )
+        }
+
         setShowCreateDialog(false)
         setCreateForm({ client_type: 'individual', first_name: '', last_name: '', company_name: '', email: '', phone: '', district: '', region: '', county: '', subcounty: '', parish: '', status: 'prospect', notes: '' })
         setFormErrors({})
+        setPendingDocuments([])
         onRefresh?.()
-        onToast?.('success', 'Client created successfully')
+        const docMsg = pendingDocuments.length > 0 ? ` with ${pendingDocuments.length} document${pendingDocuments.length > 1 ? 's' : ''}` : ''
+        onToast?.('success', `Client created successfully${docMsg}`)
       } else {
         onToast?.('error', 'Failed to create client')
       }
     } catch (e) {
       console.error(e)
       onToast?.('error', 'Failed to create client')
+    } finally {
+      setIsCreating(false)
     }
   }
 
@@ -481,11 +528,59 @@ export function ClientsPage({ clients, search, openDetail, selectedIds, toggleSe
               </div>
             </div>
 
+            {/* Supporting Documents Section */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Supporting Documents</p>
+              <p className="text-[11px] text-slate-400">Upload title deeds, IDs, agreements, or other supporting documents</p>
+              <FileUpload
+                onUploadComplete={handleDocumentUpload}
+                onUploadError={(err) => onToast?.('error', err)}
+                multiple={true}
+                maxFiles={5}
+                variant="full"
+                label="Add Documents"
+              />
+              {pendingDocuments.length > 0 && (
+                <div className="space-y-2 mt-2">
+                  {pendingDocuments.map((doc, idx) => (
+                    <div key={idx} className="flex items-center gap-2 p-2 rounded-lg border bg-slate-50">
+                      <FileThumbnail filePath={doc.path} mimeType={doc.mime_type} thumbnailPath={doc.thumbnail_path} size="sm" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium truncate">{doc.name}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] text-slate-400">{(doc.size / 1024).toFixed(1)} KB</span>
+                          <Select value={doc.doc_type} onValueChange={v => updatePendingDocType(idx, v)}>
+                            <SelectTrigger className="h-5 text-[10px] w-24 border-0 p-0 bg-transparent">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="title_deed">Title Deed</SelectItem>
+                              <SelectItem value="identification">ID / ID</SelectItem>
+                              <SelectItem value="agreement">Agreement</SelectItem>
+                              <SelectItem value="survey_plan">Survey Plan</SelectItem>
+                              <SelectItem value="certificate">Certificate</SelectItem>
+                              <SelectItem value="correspondence">Correspondence</SelectItem>
+                              <SelectItem value="other">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 shrink-0" onClick={() => removePendingDocument(idx)}>
+                        <X className="w-3 h-3 text-slate-400" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Notes */}
             <div><Label className="text-xs">Notes</Label><Textarea className="text-xs mt-1" rows={2} value={createForm.notes} onChange={e => setCreateForm({ ...createForm, notes: e.target.value })} /></div>
           </div>
           <SheetFooter>
-            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={handleCreate}>Create Client</Button>
+            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={handleCreate} disabled={isCreating}>
+              {isCreating ? <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />Creating...</> : 'Create Client'}
+            </Button>
           </SheetFooter>
         </SheetContent>
       </Sheet>

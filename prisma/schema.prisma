@@ -651,6 +651,7 @@ model User {
   id            String    @id @default(cuid())
   email         String    @unique
   name          String
+  password_hash String?
   avatar_url    String?
   phone         String?
   job_title     String?

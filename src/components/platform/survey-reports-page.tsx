@@ -21,7 +21,7 @@ import {
 import {
   FileText, FileCheck, Download, Printer, Plus, Pencil, Eye, Clock, Zap,
   MapPin, Mountain, Scale, ClipboardCheck, ChevronRight, CheckCircle2,
-  Loader2, Trash2, ArrowRight, X, GripVertical,
+  Loader2, Trash2, ArrowRight, X, GripVertical, FileDown,
 } from 'lucide-react'
 import { ReportPreview } from '@/components/platform/report-preview'
 import type { ClientRecord, ProjectRecord } from '@/components/platform/types'
@@ -145,6 +145,7 @@ export function SurveyReportsPage({ clients, projects, onToast, onRefresh }: Sur
   const [viewingReport, setViewingReport] = useState<SurveyReport | null>(null)
   const [reportViewerOpen, setReportViewerOpen] = useState(false)
   const [reportPreviewHtml, setReportPreviewHtml] = useState('')
+  const [pdfGeneratingId, setPdfGeneratingId] = useState<string | null>(null)
 
   const fetchTemplates = useCallback(async () => {
     try {
@@ -412,6 +413,32 @@ export function SurveyReportsPage({ clients, projects, onToast, onRefresh }: Sur
     }
   }
 
+  const handleDownloadPdf = async (reportId: string, reportNumber: string) => {
+    setPdfGeneratingId(reportId)
+    try {
+      const res = await fetch(`/api/survey-reports/${reportId}/pdf`, { method: 'GET' })
+      if (res.ok) {
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `survey-report-${reportNumber}.pdf`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+        onToast('success', `PDF downloaded: survey-report-${reportNumber}.pdf`)
+      } else {
+        onToast('error', 'Failed to generate PDF')
+      }
+    } catch (e) {
+      console.error('PDF download error:', e)
+      onToast('error', 'Failed to download PDF')
+    } finally {
+      setPdfGeneratingId(null)
+    }
+  }
+
   // ── Loading state ──
   if (loading) {
     return (
@@ -475,12 +502,24 @@ export function SurveyReportsPage({ clients, projects, onToast, onRefresh }: Sur
                   <Clock className="w-3.5 h-3.5 inline mr-1" />
                   Generated in {generationTime.toFixed(1)} seconds
                 </p>
-                <div className="flex items-center justify-center gap-3">
+                <div className="flex items-center justify-center gap-3 flex-wrap">
                   <Button
                     onClick={() => handleViewReport(generatedReport)}
                     className="gap-1.5"
                   >
                     <Eye className="w-4 h-4" /> View Report
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleDownloadPdf(generatedReport.id, generatedReport.report_number)}
+                    disabled={pdfGeneratingId === generatedReport.id}
+                    className="gap-1.5"
+                  >
+                    {pdfGeneratingId === generatedReport.id ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Generating PDF...</>
+                    ) : (
+                      <><FileDown className="w-4 h-4" /> Download PDF</>
+                    )}
                   </Button>
                   <Button
                     variant="outline"
@@ -495,7 +534,7 @@ export function SurveyReportsPage({ clients, projects, onToast, onRefresh }: Sur
                     }}
                     className="gap-1.5"
                   >
-                    <Download className="w-4 h-4" /> Download HTML
+                    <Download className="w-4 h-4" /> HTML
                   </Button>
                   <Button variant="outline" onClick={resetGenerateFlow} className="gap-1.5">
                     <Plus className="w-4 h-4" /> New Report
@@ -867,7 +906,7 @@ export function SurveyReportsPage({ clients, projects, onToast, onRefresh }: Sur
                       <TableHead>Template</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Created</TableHead>
-                      <TableHead className="w-[100px]">Actions</TableHead>
+                      <TableHead className="w-[120px]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -894,6 +933,20 @@ export function SurveyReportsPage({ clients, projects, onToast, onRefresh }: Sur
                             <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                               <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleViewReport(report)}>
                                 <Eye className="w-3 h-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                onClick={() => handleDownloadPdf(report.id, report.report_number)}
+                                disabled={pdfGeneratingId === report.id}
+                                title="Download PDF"
+                              >
+                                {pdfGeneratingId === report.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <FileDown className="w-3 h-3" />
+                                )}
                               </Button>
                               <Button
                                 variant="ghost"
@@ -1350,12 +1403,18 @@ export function SurveyReportsPage({ clients, projects, onToast, onRefresh }: Sur
                 <ReportPreview
                   htmlContent={reportPreviewHtml}
                   reportNumber={viewingReport?.report_number}
+                  reportId={viewingReport?.id}
                   onPrint={() => {
                     const win = window.open('', '_blank')
                     if (win) {
                       win.document.write(reportPreviewHtml)
                       win.document.close()
                       setTimeout(() => win.print(), 500)
+                    }
+                  }}
+                  onDownloadPdf={() => {
+                    if (viewingReport) {
+                      handleDownloadPdf(viewingReport.id, viewingReport.report_number)
                     }
                   }}
                   onDownload={() => {

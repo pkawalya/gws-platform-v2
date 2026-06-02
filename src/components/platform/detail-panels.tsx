@@ -13,11 +13,79 @@ import {
   MapPin, CheckCircle2, Clock3, Receipt, DollarSign, FileText,
   MessageSquare, ShieldCheck, ScrollText, Cpu, GitBranch,
   ChevronDown, Eye, Send, Trash2, MoreHorizontal, TrendingUp, TrendingDown,
-  CalendarDays, ArrowRight, AlertCircle,
+  CalendarDays, ArrowRight, AlertCircle, Download,
 } from 'lucide-react'
 import { fmt, statusBadge, PRIORITY_BADGE, formatUGX } from './constants'
 import { DetailField } from './helpers'
+import { FileThumbnail, FileDownloadButton } from './file-upload'
 import type { ClientRecord, ProjectRecord } from './types'
+
+// ── Client Documents Tab ──
+function ClientDocumentsTab({ clientId, count }: { clientId: number; count: number }) {
+  const [documents, setDocuments] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/documents')
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled) return
+        const docs = (data.documents || []).filter((d: any) => Number(d.client_id) === Number(clientId))
+        setDocuments(docs)
+        setLoading(false)
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [clientId])
+
+  if (loading) {
+    return (
+      <div className="space-y-2">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="h-12 rounded bg-slate-100 animate-pulse" />
+        ))}
+      </div>
+    )
+  }
+
+  if (documents.length === 0) {
+    return (
+      <div className="text-center py-6">
+        <FileText className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+        <p className="text-sm text-slate-500">{count} documents on file</p>
+        <p className="text-[11px] text-slate-400 mt-0.5">Upload documents from the Documents Vault or Client creation form</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-slate-500 mb-2">{documents.length} document{documents.length !== 1 ? 's' : ''} on file</p>
+      {documents.map((doc: any) => {
+        const fp = doc.file_path?.startsWith('/upload/') ? doc.file_path : doc.file_path?.startsWith('/') ? doc.file_path : null
+        return (
+          <div key={doc.id} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors">
+            <FileThumbnail filePath={fp} mimeType={doc.mime_type} size="md" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{doc.title}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <Badge variant="outline" className="text-[10px]">{fmt(doc.document_type)}</Badge>
+                {doc.file_size && <span className="text-[10px] text-slate-400">{(Number(doc.file_size) / 1024).toFixed(1)} KB</span>}
+                <Badge variant="outline" className={`text-[9px] ${doc.is_verified ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200'}`}>
+                  {doc.is_verified ? '✓ Verified' : 'Unverified'}
+                </Badge>
+              </div>
+            </div>
+            {fp && <FileDownloadButton filePath={fp} fileName={doc.title} />}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 // ── Mini Map for Client Location ──
 function ClientMiniMap({ latitude, longitude, name }: { latitude: string; longitude: string; name: string }) {
@@ -364,10 +432,7 @@ export function ClientDetail({ data, onRefresh }: { data: ClientRecord; onRefres
 
       {/* Documents Tab */}
       {activeTab === 'documents' && (
-        <div className="space-y-3">
-          <p className="text-sm text-slate-600">{data._count.documents} documents on file</p>
-          <p className="text-[11px] text-slate-400">View and manage documents from the Document Vault module</p>
-        </div>
+        <ClientDocumentsTab clientId={data.id} count={data._count.documents} />
       )}
 
       {/* Communications Tab */}
@@ -643,6 +708,12 @@ export function DocumentDetail({ data, onRefresh }: { data: any; onRefresh?: () 
 
   if (!data) return null
 
+  const isImage = data.mime_type?.startsWith('image/')
+  const isPdf = data.mime_type === 'application/pdf'
+  const filePath = data.file_path?.startsWith('/upload/') ? data.file_path : data.file_path?.startsWith('/') ? data.file_path : null
+  const fileUrl = filePath ? `/api/files${filePath}` : null
+  const thumbUrl = isImage && filePath ? `/api/files${filePath}?w=400&h=400` : null
+
   const handleVerify = async () => {
     setActionLoading(true)
     try {
@@ -660,6 +731,17 @@ export function DocumentDetail({ data, onRefresh }: { data: any; onRefresh?: () 
     } catch (e) { console.error(e) } finally { setActionLoading(false) }
   }
 
+  const handleDownload = () => {
+    if (!fileUrl) return
+    const link = document.createElement('a')
+    link.href = fileUrl
+    link.download = data.title || 'download'
+    link.target = '_blank'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between">
@@ -672,6 +754,11 @@ export function DocumentDetail({ data, onRefresh }: { data: any; onRefresh?: () 
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {fileUrl && (
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={handleDownload}>
+              <Download className="w-3.5 h-3.5 mr-1" /> Download
+            </Button>
+          )}
           {!data.is_verified && (
             <Button size="sm" className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700" disabled={actionLoading} onClick={handleVerify}>
               <Eye className="w-3.5 h-3.5 mr-1" /> Verify
@@ -691,13 +778,30 @@ export function DocumentDetail({ data, onRefresh }: { data: any; onRefresh?: () 
           </DropdownMenu>
         </div>
       </div>
+
+      {/* File Preview */}
+      {thumbUrl && (
+        <div className="rounded-lg overflow-hidden border bg-slate-50">
+          <img src={thumbUrl} alt={data.title} className="w-full h-auto max-h-64 object-contain" />
+        </div>
+      )}
+      {isPdf && fileUrl && (
+        <div className="rounded-lg border bg-slate-50 p-4 text-center">
+          <FileText className="w-10 h-10 text-red-400 mx-auto mb-2" />
+          <p className="text-xs text-slate-500">PDF Document</p>
+          <Button size="sm" variant="outline" className="h-7 text-[11px] mt-2" onClick={handleDownload}>
+            <Eye className="w-3 h-3 mr-1" /> View PDF
+          </Button>
+        </div>
+      )}
+
       <Separator />
       <div className="grid grid-cols-2 gap-4">
         <DetailField label="Document Type" value={fmt(data.document_type)} />
-        <DetailField label="MIME Type" value={<span className="font-mono text-xs">{data.mime_type}</span>} />
+        <DetailField label="File Type" value={<span className="font-mono text-xs">{data.mime_type?.split('/').pop()?.toUpperCase() || 'Unknown'}</span>} />
         <DetailField label="Client" value={data.client?.company_name || `${data.client?.first_name} ${data.client?.last_name}`} />
         <DetailField label="File Size" value={data.file_size ? `${(Number(data.file_size) / 1024).toFixed(1)} KB` : '—'} />
-        <DetailField label="File Path" value={<span className="font-mono text-[11px] break-all">{data.file_path}</span>} />
+        <DetailField label="MIME Type" value={<span className="font-mono text-[11px]">{data.mime_type}</span>} />
         <DetailField label="Uploaded By" value={data.uploaded_by} />
         <DetailField label="Created" value={new Date(data.created_at).toLocaleString()} />
       </div>

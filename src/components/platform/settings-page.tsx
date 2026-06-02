@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,10 +11,79 @@ import { Separator } from '@/components/ui/separator'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
+import {
   Settings, User, Building2, Palette, Bell, Globe, Shield, Monitor,
-  Moon, Sun, Save, RotateCcw, CheckCircle2, Clock3, Database, RefreshCw, HardDrive, Wifi, WifiOff, Cloud, MapPin, Users, Receipt, FileText,
+  Moon, Sun, Save, RotateCcw, CheckCircle2, Clock3, Database, RefreshCw, HardDrive, Wifi, WifiOff, Cloud, MapPin, Users, Receipt, FileText, Lock, QrCode, AlertTriangle, ShieldCheck,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { signOut } from 'next-auth/react'
+
+// ── Accent Color Definitions ──
+const ACCENT_COLORS = [
+  { name: 'Emerald', value: 'emerald', bgClass: 'bg-emerald-500', ringClass: 'ring-emerald-500' },
+  { name: 'Blue', value: 'blue', bgClass: 'bg-blue-500', ringClass: 'ring-blue-500' },
+  { name: 'Violet', value: 'violet', bgClass: 'bg-violet-500', ringClass: 'ring-violet-500' },
+  { name: 'Rose', value: 'rose', bgClass: 'bg-rose-500', ringClass: 'ring-rose-500' },
+  { name: 'Amber', value: 'amber', bgClass: 'bg-amber-500', ringClass: 'ring-amber-500' },
+] as const
+
+type AccentColor = typeof ACCENT_COLORS[number]['value']
+
+// ── Apply accent color to document root ──
+function applyAccentColor(color: AccentColor) {
+  if (typeof document !== 'undefined') {
+    document.documentElement.setAttribute('data-accent', color)
+    localStorage.setItem('gws-accent-color', color)
+  }
+}
+
+// ── Get saved accent color ──
+function getSavedAccentColor(): AccentColor {
+  if (typeof window === 'undefined') return 'emerald'
+  return (localStorage.getItem('gws-accent-color') as AccentColor) || 'emerald'
+}
+
+// ── Apply compact mode to document root ──
+function applyCompactMode(enabled: boolean) {
+  if (typeof document !== 'undefined') {
+    if (enabled) {
+      document.documentElement.classList.add('compact-mode')
+    } else {
+      document.documentElement.classList.remove('compact-mode')
+    }
+    localStorage.setItem('gws-compact-mode', String(enabled))
+  }
+}
+
+// ── Get saved compact mode ──
+function getSavedCompactMode(): boolean {
+  if (typeof window === 'undefined') return false
+  return localStorage.getItem('gws-compact-mode') === 'true'
+}
+
+// ── Get saved session timeout ──
+function getSavedSessionTimeout(): string {
+  if (typeof window === 'undefined') return '30'
+  return localStorage.getItem('gws-session-timeout') || '30'
+}
+
+// ── Get saved 2FA state ──
+function getSaved2FA(): boolean {
+  if (typeof window === 'undefined') return false
+  return localStorage.getItem('gws-2fa-enabled') === 'true'
+}
+
+// ── Generate mock TOTP secret ──
+function generateMockSecret(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
+  let secret = ''
+  for (let i = 0; i < 16; i++) {
+    secret += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return secret
+}
 
 interface SettingsPageProps {
   darkMode: boolean
@@ -24,7 +93,30 @@ interface SettingsPageProps {
 export function SettingsPage({ darkMode, toggleDarkMode }: SettingsPageProps) {
   const [saved, setSaved] = useState(false)
 
-  // User preferences state
+  // ── Accent Color State ──
+  const [accentColor, setAccentColor] = useState<AccentColor>(getSavedAccentColor)
+
+  // ── Compact Mode State ──
+  const [compactMode, setCompactMode] = useState(getSavedCompactMode)
+
+  // ── Session Timeout State ──
+  const [sessionTimeout, setSessionTimeout] = useState(getSavedSessionTimeout)
+
+  // ── 2FA State ──
+  const [twoFAEnabled, setTwoFAEnabled] = useState(getSaved2FA)
+  const [show2FADialog, setShow2FADialog] = useState(false)
+  const [twoFASecret, setTwoFASecret] = useState('')
+  const [twoFAVerifyCode, setTwoFAVerifyCode] = useState('')
+  const [twoFAStep, setTwoFAStep] = useState<'setup' | 'verify'>('setup')
+
+  // ── Session Timeout Dialog State ──
+  const [showTimeoutDialog, setShowTimeoutDialog] = useState(false)
+  const [timeoutCountdown, setTimeoutCountdown] = useState(60)
+  const timeoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const activityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── User preferences state ──
   const [userPrefs, setUserPrefs] = useState(() => {
     if (typeof window === 'undefined') return { name: 'Admin User', email: 'admin@gws.co.ug', role: 'Administrator', timezone: 'Africa/Kampala', language: 'en', dateFormat: 'DD/MM/YYYY' }
     return {
@@ -37,7 +129,7 @@ export function SettingsPage({ darkMode, toggleDarkMode }: SettingsPageProps) {
     }
   })
 
-  // Organization settings
+  // ── Organization settings ──
   const [orgSettings, setOrgSettings] = useState(() => {
     if (typeof window === 'undefined') return { name: 'GWS Surveyors Ltd', slug: 'gws-surveyors', country: 'Uganda', currency: 'UGX', vatRate: '18', fiscalYear: 'July-June' }
     return {
@@ -50,7 +142,7 @@ export function SettingsPage({ darkMode, toggleDarkMode }: SettingsPageProps) {
     }
   })
 
-  // Notification preferences
+  // ── Notification preferences ──
   const [notifPrefs, setNotifPrefs] = useState(() => {
     if (typeof window === 'undefined') return { emailNotifications: true, pushNotifications: true, approvalAlerts: true, projectUpdates: true, invoiceReminders: true, syncAlerts: false }
     return {
@@ -63,8 +155,144 @@ export function SettingsPage({ darkMode, toggleDarkMode }: SettingsPageProps) {
     }
   })
 
+  // ── Apply accent color on mount and change ──
+  useEffect(() => {
+    applyAccentColor(accentColor)
+  }, [accentColor])
+
+  // ── Apply compact mode on mount and change ──
+  useEffect(() => {
+    applyCompactMode(compactMode)
+  }, [compactMode])
+
+  // ── Session Timeout Implementation ──
+  const resetActivityTimer = useCallback(() => {
+    if (sessionTimeout === 'never') return
+
+    // Clear existing timers
+    if (activityTimerRef.current) clearTimeout(activityTimerRef.current)
+    if (warningTimerRef.current) clearTimeout(warningTimerRef.current)
+
+    const timeoutMs = parseInt(sessionTimeout) * 60 * 1000
+    const warningMs = timeoutMs - 60000 // Warn 1 minute before
+
+    // Set warning timer
+    warningTimerRef.current = setTimeout(() => {
+      toast.warning('Your session will expire in 1 minute due to inactivity', { duration: 10000 })
+      // Show dialog with countdown
+      setShowTimeoutDialog(true)
+      setTimeoutCountdown(60)
+
+      // Start countdown
+      if (timeoutTimerRef.current) clearInterval(timeoutTimerRef.current)
+      timeoutTimerRef.current = setInterval(() => {
+        setTimeoutCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(timeoutTimerRef.current!)
+            // Session expired - sign out
+            signOut({ callbackUrl: '/' })
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    }, warningMs)
+
+    // Set full timeout timer (backup - sign out after timeout)
+    activityTimerRef.current = setTimeout(() => {
+      signOut({ callbackUrl: '/' })
+    }, timeoutMs)
+  }, [sessionTimeout])
+
+  // Continue session when user clicks "Continue"
+  const handleContinueSession = useCallback(() => {
+    setShowTimeoutDialog(false)
+    if (timeoutTimerRef.current) clearInterval(timeoutTimerRef.current)
+    resetActivityTimer()
+    toast.success('Session extended')
+  }, [resetActivityTimer])
+
+  // Listen for user activity to reset timer
+  useEffect(() => {
+    if (sessionTimeout === 'never') return
+
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click']
+    const handleActivity = () => {
+      // Don't reset if dialog is showing (user must explicitly continue)
+      if (!showTimeoutDialog) {
+        resetActivityTimer()
+      }
+    }
+
+    events.forEach(event => window.addEventListener(event, handleActivity))
+    resetActivityTimer()
+
+    return () => {
+      events.forEach(event => window.removeEventListener(event, handleActivity))
+      if (activityTimerRef.current) clearTimeout(activityTimerRef.current)
+      if (warningTimerRef.current) clearTimeout(warningTimerRef.current)
+      if (timeoutTimerRef.current) clearInterval(timeoutTimerRef.current)
+    }
+  }, [sessionTimeout, resetActivityTimer, showTimeoutDialog])
+
+  // ── Accent Color Handler ──
+  const handleAccentChange = (color: AccentColor) => {
+    setAccentColor(color)
+    applyAccentColor(color)
+    toast.success(`Accent color changed to ${ACCENT_COLORS.find(c => c.value === color)?.name}`)
+  }
+
+  // ── Compact Mode Handler ──
+  const handleCompactToggle = (enabled: boolean) => {
+    setCompactMode(enabled)
+    applyCompactMode(enabled)
+    toast.success(enabled ? 'Compact mode enabled' : 'Compact mode disabled')
+  }
+
+  // ── Session Timeout Handler ──
+  const handleSessionTimeoutChange = (value: string) => {
+    setSessionTimeout(value)
+    localStorage.setItem('gws-session-timeout', value)
+    if (value === 'never') {
+      if (activityTimerRef.current) clearTimeout(activityTimerRef.current)
+      if (warningTimerRef.current) clearTimeout(warningTimerRef.current)
+      if (timeoutTimerRef.current) clearInterval(timeoutTimerRef.current)
+      toast.success('Session timeout disabled')
+    } else {
+      toast.success(`Session timeout set to ${value === '15' ? '15 minutes' : value === '30' ? '30 minutes' : '1 hour'}`)
+      resetActivityTimer()
+    }
+  }
+
+  // ── 2FA Handlers ──
+  const handle2FAToggle = (enabled: boolean) => {
+    if (enabled) {
+      // Show setup dialog
+      setTwoFASecret(generateMockSecret())
+      setTwoFAStep('setup')
+      setTwoFAVerifyCode('')
+      setShow2FADialog(true)
+    } else {
+      // Disable 2FA
+      setTwoFAEnabled(false)
+      localStorage.setItem('gws-2fa-enabled', 'false')
+      toast.success('Two-Factor Authentication disabled')
+    }
+  }
+
+  const handle2FAVerify = () => {
+    // Mock verification - accept any 6-digit code
+    if (twoFAVerifyCode.length === 6 && /^\d{6}$/.test(twoFAVerifyCode)) {
+      setTwoFAEnabled(true)
+      localStorage.setItem('gws-2fa-enabled', 'true')
+      setShow2FADialog(false)
+      toast.success('Two-Factor Authentication enabled successfully')
+    } else {
+      toast.error('Please enter a valid 6-digit code')
+    }
+  }
+
   const handleSave = () => {
-    // Save all settings to localStorage
     localStorage.setItem('gws-settings-name', userPrefs.name)
     localStorage.setItem('gws-settings-email', userPrefs.email)
     localStorage.setItem('gws-settings-timezone', userPrefs.timezone)
@@ -89,6 +317,9 @@ export function SettingsPage({ darkMode, toggleDarkMode }: SettingsPageProps) {
 
   const handleReset = () => {
     localStorage.clear()
+    // Reset accent color
+    document.documentElement.removeAttribute('data-accent')
+    document.documentElement.classList.remove('compact-mode')
     toast.success('Settings reset to defaults')
     window.location.reload()
   }
@@ -149,7 +380,14 @@ export function SettingsPage({ darkMode, toggleDarkMode }: SettingsPageProps) {
                 <div>
                   <p className="font-semibold">{userPrefs.name}</p>
                   <p className="text-xs text-slate-500">{userPrefs.role}</p>
-                  <Badge variant="outline" className="text-[10px] mt-1 text-emerald-700 border-emerald-200 bg-emerald-50">Active</Badge>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant="outline" className="text-[10px] text-emerald-700 border-emerald-200 bg-emerald-50">Active</Badge>
+                    {twoFAEnabled && (
+                      <Badge variant="outline" className="text-[10px] text-blue-700 border-blue-200 bg-blue-50">
+                        <ShieldCheck className="w-3 h-3 mr-0.5" />2FA
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </div>
               <Separator />
@@ -180,25 +418,36 @@ export function SettingsPage({ darkMode, toggleDarkMode }: SettingsPageProps) {
               <CardDescription className="text-xs">Account security settings</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Two-Factor Authentication */}
               <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
                 <div className="flex items-center gap-3">
-                  <Shield className="w-5 h-5 text-emerald-600" />
+                  <Shield className="w-5 h-5 text-blue-600" />
                   <div>
-                    <p className="text-sm font-medium">Two-Factor Authentication</p>
-                    <p className="text-[11px] text-slate-500">Add an extra layer of security</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium">Two-Factor Authentication</p>
+                      {twoFAEnabled && (
+                        <Badge className="text-[9px] h-4 bg-emerald-100 text-emerald-700 border-0">Enabled</Badge>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500">Add an extra layer of security with TOTP</p>
                   </div>
                 </div>
-                <Switch checked={false} onCheckedChange={() => toast.info('2FA setup coming soon')} />
+                <Switch
+                  checked={twoFAEnabled}
+                  onCheckedChange={handle2FAToggle}
+                />
               </div>
+
+              {/* Session Timeout */}
               <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
                 <div className="flex items-center gap-3">
-                  <Clock3 className="w-5 h-5 text-blue-600" />
+                  <Clock3 className="w-5 h-5 text-amber-600" />
                   <div>
                     <p className="text-sm font-medium">Session Timeout</p>
                     <p className="text-[11px] text-slate-500">Auto-logout after inactivity</p>
                   </div>
                 </div>
-                <Select value="30" onValueChange={() => {}}>
+                <Select value={sessionTimeout} onValueChange={handleSessionTimeoutChange}>
                   <SelectTrigger className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="15">15 minutes</SelectItem>
@@ -320,34 +569,45 @@ export function SettingsPage({ darkMode, toggleDarkMode }: SettingsPageProps) {
 
               <Separator />
 
+              {/* Accent Color Picker */}
               <div>
                 <Label className="text-xs">Accent Color</Label>
-                <div className="flex items-center gap-2 mt-2">
-                  {[
-                    { name: 'Emerald', color: 'bg-emerald-500', active: true },
-                    { name: 'Teal', color: 'bg-teal-500', active: false },
-                    { name: 'Cyan', color: 'bg-cyan-500', active: false },
-                    { name: 'Rose', color: 'bg-rose-500', active: false },
-                    { name: 'Orange', color: 'bg-orange-500', active: false },
-                  ].map(c => (
+                <p className="text-[11px] text-slate-500 mt-0.5 mb-2">Changes primary buttons, sidebar highlights, badges, and links</p>
+                <div className="flex items-center gap-3 mt-2">
+                  {ACCENT_COLORS.map(c => (
                     <button
-                      key={c.name}
-                      className={`w-8 h-8 rounded-full ${c.color} transition-all ${c.active ? 'ring-2 ring-offset-2 ring-emerald-500' : 'hover:scale-110'}`}
+                      key={c.value}
+                      className={`w-9 h-9 rounded-full ${c.bgClass} transition-all ${
+                        accentColor === c.value
+                          ? `ring-2 ring-offset-2 ${c.ringClass} scale-110`
+                          : 'hover:scale-110 ring-1 ring-black/10'
+                      }`}
                       title={c.name}
-                      onClick={() => toast.info(`${c.name} theme coming soon`)}
-                    />
+                      onClick={() => handleAccentChange(c.value)}
+                    >
+                      {accentColor === c.value && (
+                        <CheckCircle2 className="w-4 h-4 text-white mx-auto" />
+                      )}
+                    </button>
                   ))}
                 </div>
+                <p className="text-[11px] text-slate-400 mt-2">
+                  Current: <span className="font-medium text-slate-600">{ACCENT_COLORS.find(c => c.value === accentColor)?.name}</span>
+                </p>
               </div>
 
               <Separator />
 
+              {/* Compact Mode */}
               <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
-                <div>
-                  <p className="text-sm font-medium">Compact Mode</p>
-                  <p className="text-[11px] text-slate-500">Reduce spacing for more content</p>
+                <div className="flex items-center gap-3">
+                  <Monitor className="w-5 h-5 text-slate-600" />
+                  <div>
+                    <p className="text-sm font-medium">Compact Mode</p>
+                    <p className="text-[11px] text-slate-500">Reduce spacing for more content on screen</p>
+                  </div>
                 </div>
-                <Switch checked={false} onCheckedChange={() => toast.info('Compact mode coming soon')} />
+                <Switch checked={compactMode} onCheckedChange={handleCompactToggle} />
               </div>
 
               <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
@@ -494,6 +754,136 @@ export function SettingsPage({ darkMode, toggleDarkMode }: SettingsPageProps) {
           <OfflineSyncSettings />
         </TabsContent>
       </Tabs>
+
+      {/* ── Session Timeout Dialog ── */}
+      <Dialog open={showTimeoutDialog} onOpenChange={setShowTimeoutDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Session Expiring
+            </DialogTitle>
+            <DialogDescription>
+              Your session is about to expire due to inactivity.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center py-4">
+            <div className="w-20 h-20 rounded-full border-4 border-amber-500 flex items-center justify-center mb-3">
+              <span className="text-2xl font-bold text-amber-600">{timeoutCountdown}</span>
+            </div>
+            <p className="text-sm text-slate-500">seconds remaining</p>
+            <p className="text-xs text-slate-400 mt-2">Click Continue to keep your session active</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => signOut({ callbackUrl: '/' })}>
+              Sign Out
+            </Button>
+            <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={handleContinueSession}>
+              Continue Session
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 2FA Setup Dialog ── */}
+      <Dialog open={show2FADialog} onOpenChange={(open) => {
+        if (!open && twoFAStep === 'setup') {
+          // User closed dialog without completing setup
+          setTwoFAEnabled(false)
+          localStorage.setItem('gws-2fa-enabled', 'false')
+        }
+        setShow2FADialog(open)
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-blue-600" />
+              Set Up Two-Factor Authentication
+            </DialogTitle>
+            <DialogDescription>
+              {twoFAStep === 'setup'
+                ? 'Scan the QR code with your authenticator app, then enter the verification code.'
+                : 'Enter the 6-digit code from your authenticator app to verify setup.'
+              }
+            </DialogDescription>
+          </DialogHeader>
+
+          {twoFAStep === 'setup' ? (
+            <div className="space-y-4">
+              {/* QR Code Placeholder */}
+              <div className="flex flex-col items-center py-4">
+                <div className="w-48 h-48 bg-white border-2 border-slate-200 rounded-xl flex flex-col items-center justify-center gap-2 p-4">
+                  <QrCode className="w-24 h-24 text-slate-400" />
+                  <span className="text-[10px] text-slate-400 text-center">QR Code Placeholder</span>
+                </div>
+              </div>
+
+              {/* Secret Key */}
+              <div className="space-y-2">
+                <Label className="text-xs">Manual Entry Key</Label>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 px-3 py-2 bg-slate-50 rounded-md text-xs font-mono tracking-wider select-all">
+                    {twoFASecret}
+                  </code>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => {
+                      navigator.clipboard.writeText(twoFASecret)
+                      toast.success('Secret key copied to clipboard')
+                    }}
+                  >
+                    Copy
+                  </Button>
+                </div>
+              </div>
+
+              <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={() => setTwoFAStep('verify')}>
+                Next: Enter Verification Code
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex flex-col items-center py-4">
+                <Lock className="w-12 h-12 text-blue-500 mb-3" />
+                <p className="text-sm text-slate-600 text-center">
+                  Enter the 6-digit code from your authenticator app
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs">Verification Code</Label>
+                <Input
+                  className="h-12 text-center text-lg tracking-[0.5em] font-mono"
+                  maxLength={6}
+                  placeholder="000000"
+                  value={twoFAVerifyCode}
+                  onChange={e => setTwoFAVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onKeyDown={e => { if (e.key === 'Enter') handle2FAVerify() }}
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => {
+                  setShow2FADialog(false)
+                  setTwoFAEnabled(false)
+                  localStorage.setItem('gws-2fa-enabled', 'false')
+                }}>
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                  onClick={handle2FAVerify}
+                  disabled={twoFAVerifyCode.length !== 6}
+                >
+                  Verify & Enable
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -510,10 +900,7 @@ function OfflineSyncSettings() {
   const [cacheStats, setCacheStats] = useState<{ cacheSize: number; lastSyncTime: number | null; queueCount: number } | null>(null)
   const [isSyncing, setIsSyncing] = useState(false)
 
-  // Load cache stats
-  useEffect(() => {
-    loadStats()
-  }, [])
+  useEffect(() => { loadStats() }, [])
 
   const loadStats = async () => {
     try {

@@ -11,10 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { FileText, ShieldCheck, AlertCircle, Layers, ChevronRight, Plus } from 'lucide-react'
+import { FileText, ShieldCheck, AlertCircle, Layers, ChevronRight, Plus, Download, Eye } from 'lucide-react'
 import { fmt, statusBadge } from './constants'
 import { SortableHeader } from './helpers'
 import { DataTablePagination } from './data-table-pagination'
+import { FileUpload, FileThumbnail, FileDownloadButton, type UploadedFile } from './file-upload'
 import type { ClientRecord } from './types'
 
 interface DocumentsPageProps {
@@ -25,9 +26,10 @@ interface DocumentsPageProps {
   toggleAll: (ids: number[]) => void
   clients: ClientRecord[]
   onRefresh?: () => void
+  onToast?: (type: 'success' | 'error', message: string) => void
 }
 
-export function DocumentsPage({ documentsData, openDetail, selectedIds, toggleSelect, toggleAll, clients, onRefresh }: DocumentsPageProps) {
+export function DocumentsPage({ documentsData, openDetail, selectedIds, toggleSelect, toggleAll, clients, onRefresh, onToast }: DocumentsPageProps) {
   const [sortField, setSortField] = useState('')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [typeFilter, setTypeFilter] = useState('all')
@@ -41,7 +43,11 @@ export function DocumentsPage({ documentsData, openDetail, selectedIds, toggleSe
     file_path: '',
     description: '',
     mime_type: 'application/pdf',
+    file_size: 0,
   })
+  const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null)
+  const [isCreating, setIsCreating] = useState(false)
+
   const handleSort = (field: string) => { if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc'); else { setSortField(field); setSortDir('asc') } }
 
   const metrics = documentsData?.metrics || {}
@@ -58,7 +64,23 @@ export function DocumentsPage({ documentsData, openDetail, selectedIds, toggleSe
 
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
+  const handleUploadComplete = (files: UploadedFile[]) => {
+    if (files.length > 0) {
+      const file = files[0]
+      setUploadedFile(file)
+      setCreateForm(f => ({
+        ...f,
+        file_path: file.path,
+        mime_type: file.mime_type,
+        file_size: file.size,
+        title: f.title || file.name.replace(/\.[^/.]+$/, ''),
+      }))
+    }
+  }
+
   const handleCreate = async () => {
+    if (!createForm.title || !createForm.client_id) return
+    setIsCreating(true)
     try {
       const res = await fetch('/api/documents', {
         method: 'POST',
@@ -70,10 +92,34 @@ export function DocumentsPage({ documentsData, openDetail, selectedIds, toggleSe
       })
       if (res.ok) {
         setShowCreateDialog(false)
-        setCreateForm({ title: '', document_type: 'title_deed', client_id: '', file_path: '', description: '', mime_type: 'application/pdf' })
+        setCreateForm({ title: '', document_type: 'title_deed', client_id: '', file_path: '', description: '', mime_type: 'application/pdf', file_size: 0 })
+        setUploadedFile(null)
         onRefresh?.()
+        onToast?.('success', 'Document uploaded successfully')
+      } else {
+        onToast?.('error', 'Failed to create document')
       }
-    } catch (e) { console.error(e) }
+    } catch (e) {
+      console.error(e)
+      onToast?.('error', 'Failed to create document')
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  const resetCreateForm = () => {
+    setCreateForm({ title: '', document_type: 'title_deed', client_id: '', file_path: '', description: '', mime_type: 'application/pdf', file_size: 0 })
+    setUploadedFile(null)
+  }
+
+  const getFilePath = (doc: any): string | null => {
+    if (!doc.file_path) return null
+    // Convert relative paths like /upload/2025/01/file.jpg to the files API path
+    if (doc.file_path.startsWith('/upload/')) {
+      return doc.file_path
+    }
+    // Legacy paths that don't follow the /upload/ pattern
+    return doc.file_path.startsWith('/') ? doc.file_path : `/${doc.file_path}`
   }
 
   return (
@@ -110,24 +156,42 @@ export function DocumentsPage({ documentsData, openDetail, selectedIds, toggleSe
               <TableHead className="text-xs hidden md:table-cell">Client</TableHead>
               <TableHead className="text-xs">Verification</TableHead>
               <TableHead className="text-xs hidden lg:table-cell">Size</TableHead>
-              <TableHead className="text-xs w-8"></TableHead>
+              <TableHead className="text-xs w-20">Actions</TableHead>
             </TableRow></TableHeader>
             <TableBody>
-              {paginated.map((doc: any) => (
-                <TableRow key={doc.id} className={`cursor-pointer hover:bg-slate-50 ${selectedIds.has(doc.id) ? 'bg-emerald-50/50' : ''}`}>
-                  <TableCell onClick={e => e.stopPropagation()}><Checkbox checked={selectedIds.has(doc.id)} onCheckedChange={() => toggleSelect(doc.id)} /></TableCell>
-                  <TableCell onClick={() => openDetail('document', doc)}><p className="text-sm font-medium">{doc.title}</p><p className="text-[11px] text-slate-400">{doc.mime_type}</p></TableCell>
-                  <TableCell className="hidden sm:table-cell" onClick={() => openDetail('document', doc)}><Badge variant="outline" className="text-[10px]">{fmt(doc.document_type)}</Badge></TableCell>
-                  <TableCell className="hidden md:table-cell text-xs" onClick={() => openDetail('document', doc)}>{doc.client?.company_name || `${doc.client?.first_name} ${doc.client?.last_name}`}</TableCell>
-                  <TableCell onClick={() => openDetail('document', doc)}>
-                    <Badge variant="outline" className={`text-[10px] ${doc.is_verified ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200'}`}>
-                      {doc.is_verified ? '✓ Verified' : 'Unverified'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="hidden lg:table-cell text-xs text-slate-500" onClick={() => openDetail('document', doc)}>{doc.file_size ? `${(Number(doc.file_size) / 1024).toFixed(1)} KB` : '—'}</TableCell>
-                  <TableCell onClick={() => openDetail('document', doc)}><ChevronRight className="w-4 h-4 text-slate-300" /></TableCell>
-                </TableRow>
-              ))}
+              {paginated.map((doc: any) => {
+                const filePath = getFilePath(doc)
+                return (
+                  <TableRow key={doc.id} className={`cursor-pointer hover:bg-slate-50 ${selectedIds.has(doc.id) ? 'bg-emerald-50/50' : ''}`}>
+                    <TableCell onClick={e => e.stopPropagation()}><Checkbox checked={selectedIds.has(doc.id)} onCheckedChange={() => toggleSelect(doc.id)} /></TableCell>
+                    <TableCell onClick={() => openDetail('document', doc)}>
+                      <div className="flex items-center gap-2">
+                        <FileThumbnail filePath={filePath} mimeType={doc.mime_type} size="sm" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{doc.title}</p>
+                          <p className="text-[11px] text-slate-400">{doc.mime_type?.split('/').pop()?.toUpperCase() || 'File'}</p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell" onClick={() => openDetail('document', doc)}><Badge variant="outline" className="text-[10px]">{fmt(doc.document_type)}</Badge></TableCell>
+                    <TableCell className="hidden md:table-cell text-xs" onClick={() => openDetail('document', doc)}>{doc.client?.company_name || `${doc.client?.first_name} ${doc.client?.last_name}`}</TableCell>
+                    <TableCell onClick={() => openDetail('document', doc)}>
+                      <Badge variant="outline" className={`text-[10px] ${doc.is_verified ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200'}`}>
+                        {doc.is_verified ? '✓ Verified' : 'Unverified'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell text-xs text-slate-500" onClick={() => openDetail('document', doc)}>{doc.file_size ? `${(Number(doc.file_size) / 1024).toFixed(1)} KB` : '—'}</TableCell>
+                    <TableCell onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center gap-0.5">
+                        {filePath && <FileDownloadButton filePath={filePath} fileName={doc.title} />}
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => openDetail('document', doc)}>
+                          <ChevronRight className="w-4 h-4 text-slate-300" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
           <DataTablePagination totalItems={filtered.length} pageSize={pageSize} currentPage={currentPage} onPageChange={setCurrentPage} onPageSizeChange={(s) => { setPageSize(s); setCurrentPage(1) }} />
@@ -135,8 +199,8 @@ export function DocumentsPage({ documentsData, openDetail, selectedIds, toggleSe
       </Card>
 
       {/* Create Document Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="sm:max-w-[500px]">
+      <Dialog open={showCreateDialog} onOpenChange={(open) => { setShowCreateDialog(open); if (!open) resetCreateForm() }}>
+        <DialogContent className="sm:max-w-[550px]">
           <DialogHeader>
             <DialogTitle>Upload Document</DialogTitle>
             <DialogDescription>Add a new document to the vault</DialogDescription>
@@ -158,33 +222,47 @@ export function DocumentsPage({ documentsData, openDetail, selectedIds, toggleSe
                   </SelectContent>
                 </Select>
               </div>
-              <div><Label className="text-xs">MIME Type</Label>
-                <Select value={createForm.mime_type} onValueChange={v => setCreateForm({ ...createForm, mime_type: v })}>
-                  <SelectTrigger className="h-9 text-xs mt-1"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="application/pdf">PDF</SelectItem>
-                    <SelectItem value="image/jpeg">JPEG</SelectItem>
-                    <SelectItem value="image/png">PNG</SelectItem>
-                    <SelectItem value="application/vnd.ms-excel">Excel</SelectItem>
-                    <SelectItem value="application/msword">Word</SelectItem>
+              <div><Label className="text-xs">Client</Label>
+                <Select value={createForm.client_id} onValueChange={v => setCreateForm({ ...createForm, client_id: v })}>
+                  <SelectTrigger className="h-9 text-xs mt-1"><SelectValue placeholder="Select client" /></SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {clients.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.client_type === 'company' ? c.company_name : `${c.first_name} ${c.last_name}`}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
             </div>
-            <div><Label className="text-xs">Client</Label>
-              <Select value={createForm.client_id} onValueChange={v => setCreateForm({ ...createForm, client_id: v })}>
-                <SelectTrigger className="h-9 text-xs mt-1"><SelectValue placeholder="Select client" /></SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {clients.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.client_type === 'company' ? c.company_name : `${c.first_name} ${c.last_name}`}</SelectItem>)}
-                </SelectContent>
-              </Select>
+
+            {/* File Upload Section */}
+            <div>
+              <Label className="text-xs mb-2 block">Upload File</Label>
+              <FileUpload
+                onUploadComplete={handleUploadComplete}
+                onUploadError={(err) => onToast?.('error', err)}
+                multiple={false}
+                variant="full"
+                label="Choose File"
+              />
+              {uploadedFile && (
+                <div className="mt-2 flex items-center gap-2 p-2 rounded-lg bg-emerald-50 border border-emerald-200">
+                  <FileThumbnail filePath={uploadedFile.path} mimeType={uploadedFile.mime_type} thumbnailPath={uploadedFile.thumbnail_path} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium truncate">{uploadedFile.name}</p>
+                    <p className="text-[10px] text-slate-400">{(uploadedFile.size / 1024).toFixed(1)} KB • {uploadedFile.mime_type.split('/').pop()?.toUpperCase()}</p>
+                  </div>
+                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => { setUploadedFile(null); setCreateForm(f => ({ ...f, file_path: '', file_size: 0 })) }}>
+                    <span className="text-slate-400 hover:text-slate-600 text-xs">✕</span>
+                  </Button>
+                </div>
+              )}
             </div>
-            <div><Label className="text-xs">File Path</Label><Input className="h-9 text-xs mt-1" value={createForm.file_path} onChange={e => setCreateForm({ ...createForm, file_path: e.target.value })} placeholder="/uploads/document.pdf" /></div>
-            <div><Label className="text-xs">Description</Label><Textarea className="text-xs mt-1" rows={2} value={createForm.description} onChange={e => setCreateForm({ ...createForm, description: e.target.value })} /></div>
+
+            <div><Label className="text-xs">Description</Label><Textarea className="text-xs mt-1" rows={2} value={createForm.description} onChange={e => setCreateForm({ ...createForm, description: e.target.value })} placeholder="Optional description of the document..." /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setShowCreateDialog(false)}>Cancel</Button>
-            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={handleCreate} disabled={!createForm.title || !createForm.client_id}>Upload</Button>
+            <Button variant="outline" size="sm" onClick={() => { setShowCreateDialog(false); resetCreateForm() }}>Cancel</Button>
+            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={handleCreate} disabled={!createForm.title || !createForm.client_id || isCreating}>
+              {isCreating ? 'Uploading...' : 'Upload'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

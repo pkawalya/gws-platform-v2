@@ -1,6 +1,66 @@
 import { db } from '@/lib/db'
 import { serialize } from '@/lib/json'
+import { generateSurveyPdf } from '@/lib/pdf-generator'
 import { NextRequest, NextResponse } from 'next/server'
+import { writeFile, mkdir } from 'fs/promises'
+import path from 'path'
+import { existsSync } from 'fs'
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+
+    const report = await db.surveyReport.findUnique({
+      where: { id },
+      include: { template: true },
+    })
+
+    if (!report) {
+      return NextResponse.json({ error: 'Report not found' }, { status: 404 })
+    }
+
+    // Generate PDF
+    const pdfBuffer = await generateSurveyPdf(
+      serialize(report),
+      serialize(report.template)
+    )
+
+    // Save PDF to upload/reports directory
+    const reportsDir = path.join(process.cwd(), 'upload', 'reports')
+    if (!existsSync(reportsDir)) {
+      await mkdir(reportsDir, { recursive: true })
+    }
+
+    const fileName = `survey-report-${report.report_number}.pdf`
+    const filePath = path.join(reportsDir, fileName)
+    await writeFile(filePath, pdfBuffer)
+
+    // Update the report with the pdf_path
+    await db.surveyReport.update({
+      where: { id },
+      data: { pdf_path: filePath },
+    })
+
+    // Return the PDF as a downloadable file
+    return new NextResponse(pdfBuffer, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${fileName}"`,
+        'Content-Length': pdfBuffer.length.toString(),
+      },
+    })
+  } catch (error) {
+    console.error('PDF GET generation error:', error)
+    return NextResponse.json(
+      { error: 'Failed to generate PDF' },
+      { status: 500 }
+    )
+  }
+}
 
 export async function POST(
   request: NextRequest,
@@ -18,12 +78,15 @@ export async function POST(
       return NextResponse.json({ error: 'Report not found' }, { status: 404 })
     }
 
-    // If already has generated content, return it
+    // If already has generated content, return it as HTML
     if (report.generated_content) {
-      return NextResponse.json({ html: report.generated_content, report_number: report.report_number })
+      return NextResponse.json({
+        html: report.generated_content,
+        report_number: report.report_number,
+      })
     }
 
-    // Otherwise, generate the content on the fly
+    // Otherwise, generate the content on the fly (HTML for preview)
     const template = report.template
     const reportData = report.data as Record<string, string>
     const primaryColor = template.primary_color || '#059669'
@@ -33,7 +96,10 @@ export async function POST(
       let content = section.content || ''
       if (reportData) {
         for (const [key, value] of Object.entries(reportData)) {
-          content = content.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(value))
+          content = content.replace(
+            new RegExp(`\\{\\{${key}\\}\\}`, 'g'),
+            String(value)
+          )
         }
       }
 
@@ -82,8 +148,14 @@ export async function POST(
       }
     }).join('')
 
-    const headerText = (template.header_text || '').replace(/\{\{(\w+)\}\}/g, (_, key) => reportData?.[key] || '')
-    const footerText = (template.footer_text || '').replace(/\{\{(\w+)\}\}/g, (_, key) => reportData?.[key] || '')
+    const headerText = (template.header_text || '').replace(
+      /\{\{(\w+)\}\}/g,
+      (_, key) => reportData?.[key] || ''
+    )
+    const footerText = (template.footer_text || '').replace(
+      /\{\{(\w+)\}\}/g,
+      (_, key) => reportData?.[key] || ''
+    )
 
     const fullHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -110,9 +182,15 @@ export async function POST(
       data: { generated_content: fullHtml },
     })
 
-    return NextResponse.json({ html: fullHtml, report_number: report.report_number })
+    return NextResponse.json({
+      html: fullHtml,
+      report_number: report.report_number,
+    })
   } catch (error) {
-    console.error('PDF generation error:', error)
-    return NextResponse.json({ error: 'Failed to generate PDF' }, { status: 500 })
+    console.error('PDF POST generation error:', error)
+    return NextResponse.json(
+      { error: 'Failed to generate report content' },
+      { status: 500 }
+    )
   }
 }

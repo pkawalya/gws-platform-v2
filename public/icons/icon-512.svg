@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="80" fill="#059669"/>
+  <g transform="translate(256, 240)">
+    <!-- Map pin body -->
+    <path d="M0,-112 C-62,-112 -112,-62 -112,0 C-112,80 0,165 0,165 C0,165 112,80 112,0 C112,-62 62,-112 0,-112 Z" fill="white"/>
+    <!-- Inner circle -->
+    <circle cx="0" cy="-5" r="42" fill="#059669"/>
+    <!-- Survey crosshair -->
+    <line x1="0" y1="-28" x2="0" y2="18" stroke="white" stroke-width="6" stroke-linecap="round"/>
+    <line x1="-22" y1="-5" x2="22" y2="-5" stroke="white" stroke-width="6" stroke-linecap="round"/>
+  </g>
+  <!-- Text label -->
+  <text x="256" y="460" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="42" font-weight="700" fill="white" letter-spacing="4">GWS</text>
+</svg>

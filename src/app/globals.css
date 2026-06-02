@@ -41,6 +41,11 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  /* Accent color variables */
+  --color-accent-color: var(--accent-color);
+  --color-accent-color-foreground: var(--accent-color-foreground);
+  --color-accent-color-light: var(--accent-color-light);
+  --color-accent-color-dark: var(--accent-color-dark);
 }
 
 :root {
@@ -76,8 +81,60 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /* Default accent: Emerald */
+  --accent-color: oklch(0.596 0.145 163.225);
+  --accent-color-foreground: oklch(0.985 0 0);
+  --accent-color-light: oklch(0.95 0.05 163.225);
+  --accent-color-dark: oklch(0.396 0.145 163.225);
 }
 
+/* ═══════════════════════════════════════════════════════════
+   ACCENT COLOR THEMES
+   Apply accent color overrides via data-accent attribute
+   ═══════════════════════════════════════════════════════════ */
+
+/* Emerald (default) */
+[data-accent="emerald"],
+:root:not([data-accent]) {
+  --accent-color: oklch(0.596 0.145 163.225);
+  --accent-color-foreground: oklch(0.985 0 0);
+  --accent-color-light: oklch(0.95 0.05 163.225);
+  --accent-color-dark: oklch(0.396 0.145 163.225);
+}
+
+/* Blue */
+[data-accent="blue"] {
+  --accent-color: oklch(0.546 0.245 262.881);
+  --accent-color-foreground: oklch(0.985 0 0);
+  --accent-color-light: oklch(0.95 0.05 262.881);
+  --accent-color-dark: oklch(0.396 0.18 262.881);
+}
+
+/* Violet */
+[data-accent="violet"] {
+  --accent-color: oklch(0.541 0.281 293.009);
+  --accent-color-foreground: oklch(0.985 0 0);
+  --accent-color-light: oklch(0.95 0.05 293.009);
+  --accent-color-dark: oklch(0.396 0.18 293.009);
+}
+
+/* Rose */
+[data-accent="rose"] {
+  --accent-color: oklch(0.585 0.233 10.517);
+  --accent-color-foreground: oklch(0.985 0 0);
+  --accent-color-light: oklch(0.95 0.05 10.517);
+  --accent-color-dark: oklch(0.396 0.18 10.517);
+}
+
+/* Amber */
+[data-accent="amber"] {
+  --accent-color: oklch(0.769 0.188 70.08);
+  --accent-color-foreground: oklch(0.205 0 0);
+  --accent-color-light: oklch(0.96 0.04 70.08);
+  --accent-color-dark: oklch(0.55 0.16 70.08);
+}
+
+/* Dark mode accent overrides */
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
@@ -110,7 +167,171 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  /* Dark mode accent adjustments */
+  --accent-color-light: oklch(0.25 0.04 163.225);
+  --accent-color-dark: oklch(0.7 0.16 163.225);
 }
+
+.dark[data-accent="emerald"],
+.dark:not([data-accent]) {
+  --accent-color-light: oklch(0.25 0.04 163.225);
+  --accent-color-dark: oklch(0.7 0.16 163.225);
+}
+
+.dark[data-accent="blue"] {
+  --accent-color-light: oklch(0.25 0.04 262.881);
+  --accent-color-dark: oklch(0.7 0.2 262.881);
+}
+
+.dark[data-accent="violet"] {
+  --accent-color-light: oklch(0.25 0.04 293.009);
+  --accent-color-dark: oklch(0.7 0.2 293.009);
+}
+
+.dark[data-accent="rose"] {
+  --accent-color-light: oklch(0.25 0.04 10.517);
+  --accent-color-dark: oklch(0.7 0.2 10.517);
+}
+
+.dark[data-accent="amber"] {
+  --accent-color-light: oklch(0.25 0.03 70.08);
+  --accent-color-dark: oklch(0.8 0.16 70.08);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ACCENT COLOR APPLICATIONS
+   Apply accent color to primary buttons, sidebar active,
+   badges, links, and interactive elements
+   ═══════════════════════════════════════════════════════════ */
+
+/* Primary buttons with accent color */
+.btn-accent,
+button[class*="bg-emerald-600"]:not([class*="hover:bg-emerald-700"]):only-of-type,
+.bg-accent-color {
+  background-color: var(--accent-color) !important;
+  color: var(--accent-color-foreground) !important;
+}
+
+button[class*="bg-emerald-600"]:hover:not(:disabled) {
+  background-color: var(--accent-color-dark) !important;
+}
+
+/* Sidebar active item with accent */
+[data-accent] [data-sidebar="menu-button"][data-active="true"],
+[data-accent] [data-active="true"][data-sidebar="menu-button"] {
+  background-color: var(--accent-color-light) !important;
+  color: var(--accent-color-dark) !important;
+}
+
+/* Accent colored badges */
+.badge-accent {
+  background-color: var(--accent-color-light) !important;
+  color: var(--accent-color-dark) !important;
+  border-color: var(--accent-color) !important;
+}
+
+/* Accent colored links */
+a.accent-link {
+  color: var(--accent-color) !important;
+}
+a.accent-link:hover {
+  color: var(--accent-color-dark) !important;
+}
+
+/* Accent ring for focus states */
+.ring-accent {
+  --tw-ring-color: var(--accent-color) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   COMPACT MODE
+   Reduces padding, margins, font sizes globally
+   ═══════════════════════════════════════════════════════════ */
+
+.compact-mode {
+  font-size: 13px;
+}
+
+.compact-mode .p-4 {
+  padding: 0.625rem;
+}
+
+.compact-mode .p-6 {
+  padding: 0.875rem;
+}
+
+.compact-mode .p-3 {
+  padding: 0.5rem;
+}
+
+.compact-mode .p-8 {
+  padding: 1rem;
+}
+
+.compact-mode .gap-4 {
+  gap: 0.5rem;
+}
+
+.compact-mode .gap-6 {
+  gap: 0.75rem;
+}
+
+.compact-mode .gap-3 {
+  gap: 0.375rem;
+}
+
+.compact-mode .space-y-4 > * + * {
+  margin-top: 0.5rem;
+}
+
+.compact-mode .space-y-6 > * + * {
+  margin-top: 0.75rem;
+}
+
+.compact-mode .space-y-3 > * + * {
+  margin-top: 0.375rem;
+}
+
+/* Compact table rows */
+.compact-mode table tr {
+  height: auto;
+}
+
+.compact-mode table td,
+.compact-mode table th {
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+  font-size: 0.8125rem;
+}
+
+/* Compact cards */
+.compact-mode [class*="rounded-xl"] {
+  border-radius: 0.5rem;
+}
+
+.compact-mode .h-14 {
+  height: 2.75rem;
+}
+
+.compact-mode .mb-8 {
+  margin-bottom: 1rem;
+}
+
+.compact-mode .mb-6 {
+  margin-bottom: 0.75rem;
+}
+
+.compact-mode .mb-4 {
+  margin-bottom: 0.5rem;
+}
+
+.compact-mode .pb-20 {
+  padding-bottom: 3rem;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BASE STYLES
+   ═══════════════════════════════════════════════════════════ */
 
 @layer base {
   * {

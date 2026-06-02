@@ -1,18 +1,28 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Download, Printer, Maximize2 } from 'lucide-react'
+import { Download, Printer, Maximize2, FileText, Loader2 } from 'lucide-react'
 
 interface ReportPreviewProps {
   htmlContent: string
   reportNumber?: string
+  reportId?: string
   onPrint?: () => void
   onDownload?: () => void
+  onDownloadPdf?: () => void
 }
 
-export function ReportPreview({ htmlContent, reportNumber, onPrint, onDownload }: ReportPreviewProps) {
+export function ReportPreview({
+  htmlContent,
+  reportNumber,
+  reportId,
+  onPrint,
+  onDownload,
+  onDownloadPdf,
+}: ReportPreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const [pdfGenerating, setPdfGenerating] = useState(false)
 
   useEffect(() => {
     if (iframeRef.current && htmlContent) {
@@ -41,7 +51,7 @@ export function ReportPreview({ htmlContent, reportNumber, onPrint, onDownload }
       onDownload()
       return
     }
-    // Download as HTML file (can be opened in browser and printed to PDF)
+    // Download as HTML file
     const blob = new Blob([htmlContent], { type: 'text/html' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -51,6 +61,78 @@ export function ReportPreview({ htmlContent, reportNumber, onPrint, onDownload }
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
+  }
+
+  const handleDownloadPdf = async () => {
+    if (onDownloadPdf) {
+      onDownloadPdf()
+      return
+    }
+
+    if (!reportId) return
+
+    setPdfGenerating(true)
+    try {
+      const res = await fetch(`/api/survey-reports/${reportId}/pdf`, {
+        method: 'GET',
+      })
+
+      if (res.ok) {
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `survey-report-${reportNumber || 'draft'}.pdf`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+      } else {
+        console.error('Failed to generate PDF')
+        // Fallback to HTML download
+        handleDownload()
+      }
+    } catch (e) {
+      console.error('PDF download error:', e)
+      handleDownload()
+    } finally {
+      setPdfGenerating(false)
+    }
+  }
+
+  const handlePrintPdf = async () => {
+    if (!reportId) {
+      handlePrint()
+      return
+    }
+
+    setPdfGenerating(true)
+    try {
+      const res = await fetch(`/api/survey-reports/${reportId}/pdf`, {
+        method: 'GET',
+      })
+
+      if (res.ok) {
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        const printWindow = window.open(url, '_blank')
+        if (printWindow) {
+          printWindow.addEventListener('load', () => {
+            printWindow.print()
+          })
+        }
+        // Clean up after a delay
+        setTimeout(() => URL.revokeObjectURL(url), 60000)
+      } else {
+        // Fallback to iframe print
+        handlePrint()
+      }
+    } catch (e) {
+      console.error('PDF print error:', e)
+      handlePrint()
+    } finally {
+      setPdfGenerating(false)
+    }
   }
 
   const handleFullscreen = () => {
@@ -70,13 +152,48 @@ export function ReportPreview({ htmlContent, reportNumber, onPrint, onDownload }
           Report Preview {reportNumber ? `• ${reportNumber}` : ''}
         </span>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={handlePrint}>
-            <Printer className="w-3 h-3 mr-1" /> Print
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={handlePrintPdf}
+            disabled={pdfGenerating}
+          >
+            {pdfGenerating ? (
+              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+            ) : (
+              <Printer className="w-3 h-3 mr-1" />
+            )}
+            Print PDF
           </Button>
-          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={handleDownload}>
-            <Download className="w-3 h-3 mr-1" /> Download
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={handleDownloadPdf}
+            disabled={pdfGenerating}
+          >
+            {pdfGenerating ? (
+              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+            ) : (
+              <FileText className="w-3 h-3 mr-1" />
+            )}
+            PDF
           </Button>
-          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={handleFullscreen}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={handleDownload}
+          >
+            <Download className="w-3 h-3 mr-1" /> HTML
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={handleFullscreen}
+          >
             <Maximize2 className="w-3 h-3 mr-1" /> Full
           </Button>
         </div>

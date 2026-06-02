@@ -1,23 +1,28 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useEffect, useCallback, useMemo, useState } from 'react'
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuBadge,
   SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger,
 } from '@/components/ui/sidebar'
-import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
-// Sheet and ScrollArea removed - using full page detail view
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { MapPin, Search, Database, LayoutDashboard, Users, ShieldCheck, Receipt, GitBranch, Smartphone, Layers, Brain, ScrollText, MessageSquare, FileText, Building2, BarChart2, Moon, Sun, Command, Settings, Shield, FileCheck } from 'lucide-react'
-import { toast } from 'sonner'
+import { MapPin, Search, Database, LayoutDashboard, Users, ShieldCheck, Receipt, GitBranch, Smartphone, Layers, Brain, ScrollText, MessageSquare, FileText, Building2, BarChart2, Moon, Sun, Settings, Shield, FileCheck, LogOut, Lock } from 'lucide-react'
 import { useOffline } from '@/hooks/use-offline'
 import { OfflineIndicator } from '@/components/platform/offline-indicator'
 
+// Auth
+import { useAuth } from '@/components/auth-provider'
+import { AuthGuard } from '@/components/auth-guard'
+import { PAGE_PERMISSIONS } from '@/lib/permissions'
+
+// Zustand Store
+import { useGWSStore } from '@/lib/store'
+
 // Platform components
-import type { PageId, ClientRecord, ProjectRecord, DetailPanelState, NavItem } from '@/components/platform/types'
+import type { NavItem } from '@/components/platform/types'
 import { BulkActionBar } from '@/components/platform/helpers'
 import { DashboardPage } from '@/components/platform/dashboard-page'
 import { ClientsPage } from '@/components/platform/clients-page'
@@ -40,338 +45,93 @@ import { NotificationCenter } from '@/components/platform/notification-center'
 import { CommandPalette } from '@/components/platform/command-palette'
 import { DetailPage } from '@/components/platform/detail-page'
 
-// ── Dark Mode Hook ──
-function useDarkMode() {
-  const [dark, setDark] = useState(() => {
-    if (typeof window === 'undefined') return false
-    const saved = localStorage.getItem('gws-dark-mode')
-    const prefersDark = saved === 'true' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)
-    if (prefersDark) document.documentElement.classList.add('dark')
-    return prefersDark
-  })
-  const toggle = useCallback(() => {
-    setDark(prev => {
-      const next = !prev
-      if (next) {
-        document.documentElement.classList.add('dark')
-      } else {
-        document.documentElement.classList.remove('dark')
-      }
-      localStorage.setItem('gws-dark-mode', String(next))
-      return next
-    })
-  }, [])
-  return { dark, toggle }
-}
-
-// ── Data fetcher map ──
-async function fetchEndpoint(endpoint: string) {
-  const res = await fetch(endpoint)
-  if (!res.ok) throw new Error(`Failed to fetch ${endpoint}`)
-  return res.json()
-}
-
 // ── Main App ──
 export default function GWSPlatform() {
-  const [page, setPage] = useState<PageId>('dashboard')
-  const [dashData, setDashData] = useState<any>(null)
-  const [clients, setClients] = useState<ClientRecord[]>([])
-  const [projects, setProjects] = useState<ProjectRecord[]>([])
-  const [workflows, setWorkflows] = useState<any[]>([])
-  const [spatial, setSpatial] = useState<any>(null)
-  const [fieldSync, setFieldSync] = useState<any>(null)
-  const [aiData, setAiData] = useState<any>(null)
-  const [financeData, setFinanceData] = useState<any>(null)
-  const [documentsData, setDocumentsData] = useState<any>(null)
-  const [commsData, setCommsData] = useState<any>(null)
-  const [approvalsData, setApprovalsData] = useState<any>(null)
-  const [eventsData, setEventsData] = useState<any>(null)
-  const [orgsData, setOrgsData] = useState<any>(null)
-  const [reportsData, setReportsData] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [detailPanel, setDetailPanel] = useState<DetailPanelState>({ open: false, type: '', data: null })
-  const [detailReturnPage, setDetailReturnPage] = useState<PageId>('dashboard')
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
-  const [commandOpen, setCommandOpen] = useState(false)
-
-  const { dark, toggle: toggleDark } = useDarkMode()
+  const { user, roleDisplayName, roleColor, permissions, isAuthenticated, signOut } = useAuth()
   const offline = useOffline()
 
-  // ── Toast wrapper ──
-  const showToast = useCallback((type: 'success' | 'error', message: string) => {
-    if (type === 'success') {
-      toast.success(message, { duration: 3000 })
-    } else {
-      toast.error(message, { duration: 4000 })
-    }
-  }, [])
+  // ── Zustand Store ──
+  const page = useGWSStore(s => s.page)
+  const detailPanel = useGWSStore(s => s.detailPanel)
+  const dashData = useGWSStore(s => s.dashData)
+  const clients = useGWSStore(s => s.clients)
+  const projects = useGWSStore(s => s.projects)
+  const workflows = useGWSStore(s => s.workflows)
+  const spatial = useGWSStore(s => s.spatial)
+  const fieldSync = useGWSStore(s => s.fieldSync)
+  const aiData = useGWSStore(s => s.aiData)
+  const financeData = useGWSStore(s => s.financeData)
+  const documentsData = useGWSStore(s => s.documentsData)
+  const commsData = useGWSStore(s => s.commsData)
+  const approvalsData = useGWSStore(s => s.approvalsData)
+  const eventsData = useGWSStore(s => s.eventsData)
+  const orgsData = useGWSStore(s => s.orgsData)
+  const reportsData = useGWSStore(s => s.reportsData)
+  const search = useGWSStore(s => s.search)
+  const selectedIds = useGWSStore(s => s.selectedIds)
+  const commandOpen = useGWSStore(s => s.commandOpen)
+  const loading = useGWSStore(s => s.loading)
+  const darkMode = useGWSStore(s => s.darkMode)
 
-  // ── Refresh Data Function ──
-  const refreshData = useCallback(async (endpoints?: string[]) => {
-    const allEndpoints: Record<string, () => Promise<void>> = {
-      '/api/dashboard': async () => { const d = await fetchEndpoint('/api/dashboard'); setDashData(d) },
-      '/api/clients': async () => { const c = await fetchEndpoint('/api/clients'); setClients(c) },
-      '/api/projects': async () => { const p = await fetchEndpoint('/api/projects'); setProjects(p) },
-      '/api/workflows': async () => { const w = await fetchEndpoint('/api/workflows'); setWorkflows(w) },
-      '/api/spatial': async () => { const s = await fetchEndpoint('/api/spatial'); setSpatial(s) },
-      '/api/field-sync': async () => { const f = await fetchEndpoint('/api/field-sync'); setFieldSync(f) },
-      '/api/ai': async () => { const a = await fetchEndpoint('/api/ai'); setAiData(a) },
-      '/api/finance': async () => { const fin = await fetchEndpoint('/api/finance'); setFinanceData(fin) },
-      '/api/documents': async () => { const docs = await fetchEndpoint('/api/documents'); setDocumentsData(docs) },
-      '/api/communications': async () => { const comms = await fetchEndpoint('/api/communications'); setCommsData(comms) },
-      '/api/approvals': async () => { const approvals = await fetchEndpoint('/api/approvals'); setApprovalsData(approvals) },
-      '/api/events': async () => { const events = await fetchEndpoint('/api/events'); setEventsData(events) },
-      '/api/organizations': async () => { const orgs = await fetchEndpoint('/api/organizations'); setOrgsData(orgs) },
-      '/api/reports': async () => { const reps = await fetchEndpoint('/api/reports'); setReportsData(reps) },
-    }
+  const setPage = useGWSStore(s => s.setPage)
+  const openDetail = useGWSStore(s => s.openDetail)
+  const closeDetail = useGWSStore(s => s.closeDetail)
+  const setSearch = useGWSStore(s => s.setSearch)
+  const setCommandOpen = useGWSStore(s => s.setCommandOpen)
+  const toggleDarkMode = useGWSStore(s => s.toggleDarkMode)
+  const toggleSelect = useGWSStore(s => s.toggleSelect)
+  const toggleAll = useGWSStore(s => s.toggleAll)
+  const clearSelection = useGWSStore(s => s.clearSelection)
+  const showToast = useGWSStore(s => s.showToast)
+  const refreshData = useGWSStore(s => s.refreshData)
+  const refreshWithDashboard = useGWSStore(s => s.refreshWithDashboard)
+  const fetchAllData = useGWSStore(s => s.fetchAllData)
+  const handleBulkAction = useGWSStore(s => s.handleBulkAction)
 
-    const toRefresh = endpoints || Object.keys(allEndpoints)
-    try {
-      await Promise.all(toRefresh.map(ep => allEndpoints[ep]?.()))
-    } catch (e) {
-      console.error('Refresh error:', e)
-    }
-  }, [])
+  // ── 2FA Badge State (read from localStorage) ──
+  const [twoFAEnabled, setTwoFAEnabled] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('gws-2fa-enabled') === 'true'
+  })
 
-  const refreshWithDashboard = useCallback(async (endpoints: string[]) => {
-    const eps = new Set([...endpoints, '/api/dashboard'])
-    await refreshData(Array.from(eps))
-  }, [refreshData])
-
-  const toggleSelect = useCallback((id: number) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) { next.delete(id) } else { next.add(id) }
-      return next
-    })
-  }, [])
-
-  const toggleAll = useCallback((ids: number[]) => {
-    setSelectedIds(prev => {
-      const allSelected = ids.length > 0 && ids.every(id => prev.has(id))
-      const next = new Set(prev)
-      if (allSelected) { ids.forEach(id => next.delete(id)) } else { ids.forEach(id => next.add(id)) }
-      return next
-    })
-  }, [])
-
-  // ── Bulk Action Handler ──
-  const handleBulkAction = useCallback(async (action: string) => {
-    const idsArray = Array.from(selectedIds)
-    if (idsArray.length === 0) return
-
-    try {
-      if (page === 'clients') {
-        if (action.startsWith('status-')) {
-          const status = action.replace('status-', '')
-          await fetch('/api/clients/bulk', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'status-change', ids: idsArray, status }),
-          })
-          showToast('success', `${idsArray.length} clients updated to ${status}`)
-        } else if (action === 'delete') {
-          await fetch('/api/clients/bulk', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'delete', ids: idsArray }),
-          })
-          showToast('success', `${idsArray.length} clients deleted`)
-        } else if (action === 'export') {
-          const res = await fetch('/api/clients/bulk', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'export', ids: idsArray }),
-          })
-          if (res.ok) {
-            const data = await res.json()
-            const csv = convertToCSV(data.data)
-            downloadCSV(csv, 'clients-export.csv')
-            showToast('success', 'Export downloaded')
-          }
-        }
-        await refreshWithDashboard(['/api/clients'])
-      } else if (page === 'projects') {
-        if (action.startsWith('status-')) {
-          const status = action.replace('status-', '')
-          await fetch('/api/projects/bulk', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'status-change', ids: idsArray, status }),
-          })
-          showToast('success', `${idsArray.length} projects updated to ${status}`)
-        } else if (action === 'delete') {
-          await fetch('/api/projects/bulk', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'delete', ids: idsArray }),
-          })
-          showToast('success', `${idsArray.length} projects deleted`)
-        } else if (action === 'export') {
-          const res = await fetch('/api/projects/bulk', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'export', ids: idsArray }),
-          })
-          if (res.ok) {
-            const data = await res.json()
-            const csv = convertToCSV(data.data)
-            downloadCSV(csv, 'projects-export.csv')
-            showToast('success', 'Export downloaded')
-          }
-        }
-        await refreshWithDashboard(['/api/projects'])
-      } else if (page === 'finance') {
-        if (action.startsWith('status-')) {
-          const status = action.replace('status-', '')
-          await Promise.all(idsArray.map(id =>
-            fetch(`/api/invoices/${id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ status }),
-            })
-          ))
-          showToast('success', `${idsArray.length} invoices updated`)
-        }
-        await refreshWithDashboard(['/api/finance'])
-      } else if (page === 'approvals') {
-        if (action.startsWith('status-')) {
-          const status = action.replace('status-', '')
-          await Promise.all(idsArray.map(id =>
-            fetch(`/api/approvals/${id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ status }),
-            })
-          ))
-          showToast('success', `${idsArray.length} approvals updated`)
-        }
-        await refreshWithDashboard(['/api/approvals'])
-      } else if (page === 'documents') {
-        if (action.startsWith('status-') && action === 'status-active') {
-          await Promise.all(idsArray.map(id =>
-            fetch(`/api/documents/${id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ is_verified: true }),
-            })
-          ))
-          showToast('success', `${idsArray.length} documents verified`)
-        } else if (action === 'delete') {
-          await Promise.all(idsArray.map(id =>
-            fetch(`/api/documents/${id}`, { method: 'DELETE' })
-          ))
-          showToast('success', `${idsArray.length} documents deleted`)
-        }
-        await refreshWithDashboard(['/api/documents'])
-      } else if (page === 'communications') {
-        if (action.startsWith('status-')) {
-          const status = action.replace('status-', '') === 'active' ? 'delivered' : action.replace('status-', '')
-          await Promise.all(idsArray.map(id =>
-            fetch(`/api/communications/${id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ status: status || 'delivered' }),
-            })
-          ))
-          showToast('success', `${idsArray.length} communications updated`)
-        }
-        await refreshWithDashboard(['/api/communications'])
-      }
-    } catch (e) {
-      console.error('Bulk action error:', e)
-      showToast('error', 'Bulk action failed')
-    }
-
-    setSelectedIds(new Set())
-  }, [selectedIds, page, refreshWithDashboard, showToast])
-
+  // ── Initialize accent color and compact mode on mount ──
   useEffect(() => {
-    async function fetchAll() {
-      const endpoints = [
-        { key: 'dashboard', url: '/api/dashboard' },
-        { key: 'clients', url: '/api/clients' },
-        { key: 'projects', url: '/api/projects' },
-        { key: 'workflows', url: '/api/workflows' },
-        { key: 'spatial', url: '/api/spatial' },
-        { key: 'field-sync', url: '/api/field-sync' },
-        { key: 'ai', url: '/api/ai' },
-        { key: 'finance', url: '/api/finance' },
-        { key: 'documents', url: '/api/documents' },
-        { key: 'communications', url: '/api/communications' },
-        { key: 'approvals', url: '/api/approvals' },
-        { key: 'events', url: '/api/events' },
-        { key: 'organizations', url: '/api/organizations' },
-        { key: 'reports', url: '/api/reports' },
-      ]
+    const accent = localStorage.getItem('gws-accent-color') || 'emerald'
+    document.documentElement.setAttribute('data-accent', accent)
 
-      try {
-        const dashRes = await fetchEndpoint('/api/dashboard')
-        setDashData(dashRes)
-        setLoading(false)
-      } catch (e) {
-        console.error('Dashboard fetch failed:', e)
-        setLoading(false)
-      }
-
-      const remaining = endpoints.filter(e => e.key !== 'dashboard')
-      const results = await Promise.allSettled(
-        remaining.map(async (ep) => {
-          try {
-            const data = await fetchEndpoint(ep.url)
-            return { key: ep.key, data }
-          } catch (e) {
-            console.error(`Failed to fetch ${ep.url}:`, e)
-            return { key: ep.key, data: null }
-          }
-        })
-      )
-
-      for (const result of results) {
-        if (result.status === 'fulfilled' && result.value?.data) {
-          const { key, data } = result.value
-          switch (key) {
-            case 'clients': setClients(data); break
-            case 'projects': setProjects(data); break
-            case 'workflows': setWorkflows(data); break
-            case 'spatial': setSpatial(data); break
-            case 'field-sync': setFieldSync(data); break
-            case 'ai': setAiData(data); break
-            case 'finance': setFinanceData(data); break
-            case 'documents': setDocumentsData(data); break
-            case 'communications': setCommsData(data); break
-            case 'approvals': setApprovalsData(data); break
-            case 'events': setEventsData(data); break
-            case 'organizations': setOrgsData(data); break
-            case 'reports': setReportsData(data); break
-          }
-        }
-      }
+    if (localStorage.getItem('gws-compact-mode') === 'true') {
+      document.documentElement.classList.add('compact-mode')
     }
-    fetchAll()
+
+    // Listen for 2FA changes (from settings page)
+    const check2FA = () => {
+      setTwoFAEnabled(localStorage.getItem('gws-2fa-enabled') === 'true')
+    }
+    window.addEventListener('storage', check2FA)
+    const interval = setInterval(check2FA, 2000)
+
+    return () => {
+      window.removeEventListener('storage', check2FA)
+      clearInterval(interval)
+    }
   }, [])
+
+  // ── Initial Data Fetch ──
+  useEffect(() => { fetchAllData() }, [fetchAllData])
 
   // ── Command Palette Keyboard Shortcut ──
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
-        setCommandOpen(prev => !prev)
+        setCommandOpen(!commandOpen)
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [commandOpen, setCommandOpen])
 
-  const openDetail = (type: string, data: any) => {
-    setDetailReturnPage(page)
-    setDetailPanel({ open: true, type, data })
-  }
-  const closeDetail = () => {
-    setDetailPanel({ open: false, type: '', data: null })
-  }
-
+  // ── Detail Refresh ──
   const getRefreshEndpoints = (type: string): string[] => {
     switch (type) {
       case 'client': return ['/api/clients', '/api/dashboard']
@@ -387,16 +147,10 @@ export default function GWSPlatform() {
   const handleDetailRefresh = useCallback(() => {
     const endpoints = getRefreshEndpoints(detailPanel.type)
     refreshData(endpoints)
-    // Also update the detail data from refreshed lists
-    if (detailPanel.data) {
-      let updatedData = null
-      if (detailPanel.type === 'client') updatedData = clients.find(c => c.id === detailPanel.data.id)
-      if (detailPanel.type === 'project') updatedData = projects.find(p => p.id === detailPanel.data.id)
-      if (updatedData) setDetailPanel(prev => ({ ...prev, data: updatedData }))
-    }
-  }, [detailPanel.type, detailPanel.data, refreshData, clients, projects])
+  }, [detailPanel.type, refreshData])
 
-  const NAV_ITEMS: NavItem[] = [
+  // ── Navigation Items ──
+  const ALL_NAV_ITEMS: NavItem[] = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Overview' },
     { id: 'clients', label: 'Clients', icon: Users, group: 'Core', badge: clients?.length },
     { id: 'projects', label: 'Survey Projects', icon: MapPin, group: 'Core', badge: projects?.length },
@@ -414,7 +168,17 @@ export default function GWSPlatform() {
     { id: 'reports', label: 'Reports', icon: BarChart2, group: 'Intelligence' },
     { id: 'survey-reports', label: 'Survey Reports', icon: FileCheck, group: 'Core' },
     { id: 'settings', label: 'Settings', icon: Settings, group: 'System' },
-  ]
+  ], [clients, projects, approvalsData, financeData, workflows, fieldSync, eventsData, commsData, documentsData])
+
+  const NAV_ITEMS = useMemo(() => {
+    if (!isAuthenticated) return []
+    if (permissions.includes('*')) return ALL_NAV_ITEMS
+    return ALL_NAV_ITEMS.filter(item => {
+      const requiredPerms = PAGE_PERMISSIONS[item.id]
+      if (!requiredPerms) return true
+      return requiredPerms.some(p => permissions.includes(p))
+    })
+  }, [isAuthenticated, permissions, ALL_NAV_ITEMS])
 
   const grouped = NAV_ITEMS.reduce((acc, item) => {
     const g = acc.find(a => a.group === item.group)
@@ -422,42 +186,20 @@ export default function GWSPlatform() {
     return acc
   }, [] as Array<{ group: string; items: NavItem[] }>)
 
+  // ── Loading Screen ──
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-14 h-14 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <h2 className="text-lg font-semibold text-foreground">GWS Platform V2</h2>
-          <p className="text-sm text-muted-foreground">Connecting to Prisma Postgres...</p>
+      <AuthGuard currentPage={page}>
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-14 h-14 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <h2 className="text-lg font-semibold text-foreground">GWS Platform V2</h2>
+            <p className="text-sm text-muted-foreground">Connecting to Prisma Postgres...</p>
+          </div>
         </div>
-      </div>
+      </AuthGuard>
     )
   }
-
-  // ── Skeleton loading for initial data fetch ──
-  const SkeletonDashboard = () => (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="h-8 w-24 bg-slate-200 rounded animate-pulse" />
-        <div className="h-8 w-28 bg-slate-200 rounded animate-pulse" />
-        <div className="h-8 w-24 bg-slate-200 rounded animate-pulse" />
-      </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[1, 2, 3, 4].map(i => (
-          <div key={i} className="h-28 bg-slate-100 rounded-lg animate-pulse" />
-        ))}
-      </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[1, 2, 3, 4].map(i => (
-          <div key={i} className="h-20 bg-slate-100 rounded-lg animate-pulse" />
-        ))}
-      </div>
-      <div className="grid lg:grid-cols-5 gap-6">
-        <div className="lg:col-span-2 h-72 bg-slate-100 rounded-lg animate-pulse" />
-        <div className="lg:col-span-3 h-72 bg-slate-100 rounded-lg animate-pulse" />
-      </div>
-    </div>
-  )
 
   const m = dashData?.metrics || {}
 
@@ -470,6 +212,8 @@ export default function GWSPlatform() {
     approvals: () => refreshWithDashboard(['/api/approvals']),
     workflows: () => refreshWithDashboard(['/api/workflows']),
   }
+
+  const navigateTo = (p: string) => { setPage(p as any); setSearch(''); clearSelection() }
 
   const renderPage = () => {
     switch (page) {
@@ -489,12 +233,13 @@ export default function GWSPlatform() {
       case 'reports': return <ReportsPage reportsData={reportsData} openDetail={openDetail} dashData={dashData} />
       case 'survey-reports': return <SurveyReportsPage clients={clients} projects={projects} onToast={showToast} onRefresh={() => refreshWithDashboard(['/api/projects', '/api/clients'])} />
       case 'role-permissions': return <RolePermissionsPage onToast={showToast} />
-      case 'settings': return <SettingsPage darkMode={dark} toggleDarkMode={toggleDark} />
+      case 'settings': return <SettingsPage darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
       default: return null
     }
   }
 
   return (
+    <AuthGuard currentPage={page}>
     <SidebarProvider>
       <Sidebar variant="inset" collapsible="icon">
         <SidebarHeader>
@@ -523,7 +268,7 @@ export default function GWSPlatform() {
                     <SidebarMenuItem key={item.id + item.label}>
                       <SidebarMenuButton
                         isActive={page === item.id || (detailPanel.open && ((detailPanel.type === 'client' && item.id === 'clients') || (detailPanel.type === 'project' && item.id === 'projects') || (detailPanel.type === 'invoice' && item.id === 'finance') || (detailPanel.type === 'approval' && item.id === 'approvals') || (detailPanel.type === 'document' && item.id === 'documents') || (detailPanel.type === 'communication' && item.id === 'communications') || (detailPanel.type === 'event' && item.id === 'audit') || (detailPanel.type === 'organization' && item.id === 'organizations')))}
-                        onClick={() => { setPage(item.id); setSearch(''); setSelectedIds(new Set()); closeDetail() }}
+                        onClick={() => { setPage(item.id); setSearch(''); clearSelection(); closeDetail() }}
                         tooltip={item.label}
                       >
                         <item.icon className="size-4" />
@@ -540,6 +285,29 @@ export default function GWSPlatform() {
 
         <SidebarFooter>
           <SidebarMenu>
+            {user && (
+              <SidebarMenuItem>
+                <div className="flex items-center gap-2 px-2 py-1.5">
+                  <div className="flex aspect-square size-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 text-white text-xs font-bold">
+                    {user.name?.charAt(0)?.toUpperCase() || 'U'}
+                  </div>
+                  <div className="flex flex-col gap-0.5 leading-none min-w-0">
+                    <span className="text-xs font-medium text-foreground truncate">{user.name}</span>
+                    <div className="flex items-center gap-1">
+                      {roleDisplayName && (
+                        <Badge
+                          variant="outline"
+                          className="h-4 px-1 text-[9px] font-medium border-0"
+                          style={{ backgroundColor: roleColor ? `${roleColor}20` : undefined, color: roleColor || undefined }}
+                        >
+                          {roleDisplayName}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </SidebarMenuItem>
+            )}
             <SidebarMenuItem>
               <SidebarMenuButton size="sm" className="text-xs text-muted-foreground">
                 <Database className="size-3.5" />
@@ -566,11 +334,10 @@ export default function GWSPlatform() {
                   'survey-report': 'Survey Report',
                 }
                 return typeLabels[detailPanel.type] || 'Details'
-              })() : (NAV_ITEMS.find(n => n.id === page)?.label || 'Dashboard')}
+              })() : (ALL_NAV_ITEMS.find(n => n.id === page)?.label || 'Dashboard')}
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            {/* Command Palette Trigger */}
             <Button
               variant="outline"
               size="sm"
@@ -583,11 +350,9 @@ export default function GWSPlatform() {
                 <span className="text-xs">⌘</span>K
               </kbd>
             </Button>
-            {/* Notification Center */}
-            <NotificationCenter events={eventsData?.events || eventsData?.domainEvents || []} onNavigate={(p) => { setPage(p as PageId); setSearch(''); setSelectedIds(new Set()) }} />
-            {/* Dark Mode Toggle */}
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={toggleDark} title={dark ? 'Switch to light mode' : 'Switch to dark mode'}>
-              {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            <NotificationCenter events={eventsData?.events || eventsData?.domainEvents || []} onNavigate={(p) => navigateTo(p)} />
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={toggleDarkMode} title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
+              {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>
             <OfflineIndicator
               isOnline={offline.isOnline}
@@ -596,6 +361,33 @@ export default function GWSPlatform() {
               lastSyncTime={offline.lastSyncTime}
               onSyncNow={offline.syncNow}
             />
+            {user && (
+              <div className="flex items-center gap-1.5 ml-1 pl-2 border-l">
+                <div className="flex items-center gap-1.5 h-8 px-2 rounded-md hover:bg-accent transition-colors">
+                  <div className="flex items-center justify-center size-6 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 text-white text-[10px] font-bold">
+                    {user.name?.charAt(0)?.toUpperCase() || 'U'}
+                  </div>
+                  <span className="text-xs text-foreground font-medium hidden sm:inline max-w-[80px] truncate">{user.name?.split(' ')[0]}</span>
+                  {twoFAEnabled && (
+                    <Badge variant="outline" className="h-4 px-1 text-[8px] font-medium border-0 text-blue-700 bg-blue-50 hidden md:inline-flex">
+                      <Lock className="w-2.5 h-2.5 mr-0.5" />2FA
+                    </Badge>
+                  )}
+                  {roleDisplayName && (
+                    <Badge
+                      variant="outline"
+                      className="h-4 px-1 text-[8px] font-medium border-0 hidden md:inline-flex"
+                      style={{ backgroundColor: roleColor ? `${roleColor}20` : undefined, color: roleColor || undefined }}
+                    >
+                      {roleDisplayName}
+                    </Badge>
+                  )}
+                </div>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-red-500" onClick={signOut} title="Sign out">
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              </div>
+            )}
           </div>
         </header>
 
@@ -606,8 +398,8 @@ export default function GWSPlatform() {
               data={detailPanel.data}
               onBack={closeDetail}
               onRefresh={handleDetailRefresh}
-              onNavigate={(p) => { setPage(p); setSearch(''); setSelectedIds(new Set()) }}
-              openDetail={(type, data) => { setDetailReturnPage(detailReturnPage); openDetail(type, data) }}
+              onNavigate={(p) => navigateTo(p)}
+              openDetail={(type, data) => { openDetail(type, data) }}
               clients={clients}
               projects={projects}
               documentsData={documentsData}
@@ -620,14 +412,13 @@ export default function GWSPlatform() {
       </SidebarInset>
 
       {selectedIds.size > 0 && !detailPanel.open && (
-        <BulkActionBar selectedCount={selectedIds.size} onClear={() => setSelectedIds(new Set())} onAction={handleBulkAction} />
+        <BulkActionBar selectedCount={selectedIds.size} onClear={clearSelection} onAction={handleBulkAction} />
       )}
 
-      {/* Command Palette */}
       <CommandPalette
         open={commandOpen}
         onOpenChange={setCommandOpen}
-        onNavigate={(p) => { setPage(p); setSearch(''); setSelectedIds(new Set()) }}
+        onNavigate={(p) => navigateTo(p)}
         openDetail={openDetail}
         clients={clients}
         projects={projects}
@@ -635,30 +426,6 @@ export default function GWSPlatform() {
         workflows={workflows}
       />
     </SidebarProvider>
+    </AuthGuard>
   )
-}
-
-// ── CSV Helpers ──
-function convertToCSV(data: any[]): string {
-  if (!data || data.length === 0) return ''
-  const keys = Object.keys(data[0]).filter(k => !k.startsWith('_') && typeof data[0][k] !== 'object')
-  const header = keys.join(',')
-  const rows = data.map(row =>
-    keys.map(k => {
-      const val = row[k]
-      if (val === null || val === undefined) return ''
-      const str = String(val).replace(/"/g, '""')
-      return `"${str}"`
-    }).join(',')
-  )
-  return [header, ...rows].join('\n')
-}
-
-function downloadCSV(csv: string, filename: string) {
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = filename
-  link.click()
-  URL.revokeObjectURL(link.href)
 }
