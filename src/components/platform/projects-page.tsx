@@ -8,12 +8,12 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetDescription } from '@/components/ui/sheet'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { ChevronRight, Plus, Search, SlidersHorizontal, MapPin, Inbox, Filter, FileSpreadsheet } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { fmt, statusBadge, PRIORITY_BADGE, UGANDA_DISTRICTS } from './constants'
+import { fmt, statusBadge, PRIORITY_BADGE, getRegions, getDistrictsForRegion } from './constants'
 import { SortableHeader } from './helpers'
 import { DataTablePagination } from './data-table-pagination'
 import type { ProjectRecord, ClientRecord } from './types'
@@ -47,7 +47,6 @@ export function ProjectsPage({ projects, clients, search, openDetail, selectedId
   const [createForm, setCreateForm] = useState({ title: '', project_type: 'cadastral', client_id: '', district: '', priority: 'normal', status: 'intake', description: '' })
   const [visibleColumns, setVisibleColumns] = useState<VisibleColumns>({ ref: true, client: true, type: true, district: true, status: true, area: false, priority: true })
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
-  const [districtSuggestions, setDistrictSuggestions] = useState<string[]>([])
 
   // CSV Export handler
   const handleExport = () => {
@@ -126,11 +125,6 @@ export function ProjectsPage({ projects, clients, search, openDetail, selectedId
 
   const handleDistrictChange = (value: string) => {
     setCreateForm({ ...createForm, district: value })
-    if (value.length > 0) {
-      setDistrictSuggestions(UGANDA_DISTRICTS.filter(d => d.toLowerCase().startsWith(value.toLowerCase())).slice(0, 5))
-    } else {
-      setDistrictSuggestions([])
-    }
   }
 
   return (
@@ -276,16 +270,16 @@ export function ProjectsPage({ projects, clients, search, openDetail, selectedId
         </CardContent>
       </Card>
 
-      {/* Create Project Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="sm:max-w-[520px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+      {/* Create Project Sheet */}
+      <Sheet open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <SheetContent side="right" className="sm:max-w-lg w-full overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center"><MapPin className="w-4 h-4 text-emerald-600" /></div>
               New Survey Project
-            </DialogTitle>
-            <DialogDescription>Create a new land survey project</DialogDescription>
-          </DialogHeader>
+            </SheetTitle>
+            <SheetDescription>Create a new land survey project</SheetDescription>
+          </SheetHeader>
           <div className="grid gap-4 py-4">
             {/* Title */}
             <div className="space-y-2">
@@ -334,29 +328,24 @@ export function ProjectsPage({ projects, clients, search, openDetail, selectedId
               {formErrors.client_id && <p className="text-[10px] text-red-500 mt-0.5">{formErrors.client_id}</p>}
             </div>
 
-            {/* District with autocomplete */}
-            <div className="relative">
+            {/* District */}
+            <div>
               <Label className="text-xs">District</Label>
-              <Input className="h-9 text-xs mt-1" value={createForm.district} onChange={e => handleDistrictChange(e.target.value)} placeholder="Start typing..." />
-              {districtSuggestions.length > 0 && (
-                <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-32 overflow-y-auto">
-                  {districtSuggestions.map(d => (
-                    <button key={d} className="w-full text-left px-3 py-1.5 text-xs hover:bg-emerald-50 transition-colors" onClick={() => { setCreateForm({ ...createForm, district: d }); setDistrictSuggestions([]) }}>
-                      {d}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <Select value={createForm.district} onValueChange={v => setCreateForm({ ...createForm, district: v })}>
+                <SelectTrigger className="h-9 text-xs mt-1"><SelectValue placeholder="Select district" /></SelectTrigger>
+                <SelectContent>
+                  {getRegions().flatMap(r => getDistrictsForRegion(r)).sort().map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
 
             <div><Label className="text-xs">Description</Label><Textarea className="text-xs mt-1" rows={2} value={createForm.description} onChange={e => setCreateForm({ ...createForm, description: e.target.value })} /></div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => { setShowCreateDialog(false); setFormErrors({}) }}>Cancel</Button>
+          <SheetFooter>
             <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={handleCreate}>Create Project</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

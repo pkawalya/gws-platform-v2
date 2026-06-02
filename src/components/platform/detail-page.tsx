@@ -32,7 +32,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetDescription } from '@/components/ui/sheet'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
@@ -1024,16 +1024,16 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate, documentsDa
         </TabsContent>
       </Tabs>
 
-      {/* ── Inline Create Dialog: Project ── */}
-      <Dialog open={showProjectDialog} onOpenChange={setShowProjectDialog}>
-        <DialogContent className="sm:max-w-[480px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
+      {/* ── Inline Create Sheet: Project ── */}
+      <Sheet open={showProjectDialog} onOpenChange={setShowProjectDialog}>
+        <SheetContent side="right" className="sm:max-w-lg w-full overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2 text-base">
               <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center"><MapPin className="w-4 h-4 text-blue-600" /></div>
               New Project for {clientName}
-            </DialogTitle>
-            <DialogDescription>Create a survey project linked to this client.</DialogDescription>
-          </DialogHeader>
+            </SheetTitle>
+            <SheetDescription>Create a survey project linked to this client.</SheetDescription>
+          </SheetHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-1.5">
               <Label className="text-xs">Project Title <span className="text-red-500">*</span></Label>
@@ -1072,25 +1072,24 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate, documentsDa
               <Input className="h-9 text-sm" value={projectForm.district} onChange={e => setProjectForm({ ...projectForm, district: e.target.value })} placeholder="District" />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setShowProjectDialog(false)} disabled={projectLoading}>Cancel</Button>
+          <SheetFooter>
             <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleCreateProject} disabled={projectLoading}>
               {projectLoading ? 'Creating...' : 'Create Project'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
-      {/* ── Inline Create Dialog: Invoice ── */}
-      <Dialog open={showInvoiceDialog} onOpenChange={setShowInvoiceDialog}>
-        <DialogContent className="sm:max-w-[480px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
+      {/* ── Inline Create Sheet: Invoice ── */}
+      <Sheet open={showInvoiceDialog} onOpenChange={setShowInvoiceDialog}>
+        <SheetContent side="right" className="sm:max-w-lg w-full overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2 text-base">
               <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center"><Receipt className="w-4 h-4 text-emerald-600" /></div>
               New Invoice for {clientName}
-            </DialogTitle>
-            <DialogDescription>Create an invoice for this client.</DialogDescription>
-          </DialogHeader>
+            </SheetTitle>
+            <SheetDescription>Create an invoice for this client.</SheetDescription>
+          </SheetHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
@@ -1127,25 +1126,24 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate, documentsDa
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setShowInvoiceDialog(false)} disabled={invoiceLoading}>Cancel</Button>
+          <SheetFooter>
             <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleCreateInvoice} disabled={invoiceLoading || !invoiceForm.amount}>
               {invoiceLoading ? 'Creating...' : 'Create Invoice'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
-      {/* ── Inline Create Dialog: Document ── */}
-      <Dialog open={showDocumentDialog} onOpenChange={setShowDocumentDialog}>
-        <DialogContent className="sm:max-w-[480px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
+      {/* ── Inline Create Sheet: Document ── */}
+      <Sheet open={showDocumentDialog} onOpenChange={setShowDocumentDialog}>
+        <SheetContent side="right" className="sm:max-w-lg w-full overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2 text-base">
               <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center"><FileText className="w-4 h-4 text-amber-600" /></div>
               New Document for {clientName}
-            </DialogTitle>
-            <DialogDescription>Register a document for this client.</DialogDescription>
-          </DialogHeader>
+            </SheetTitle>
+            <SheetDescription>Register a document for this client.</SheetDescription>
+          </SheetHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-1.5">
               <Label className="text-xs">Document Title <span className="text-red-500">*</span></Label>
@@ -1171,25 +1169,24 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate, documentsDa
               <Textarea className="text-sm" rows={2} value={docForm.description} onChange={e => setDocForm({ ...docForm, description: e.target.value })} placeholder="Optional description..." />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setShowDocumentDialog(false)} disabled={docLoading}>Cancel</Button>
+          <SheetFooter>
             <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white" onClick={handleCreateDocument} disabled={docLoading}>
               {docLoading ? 'Creating...' : 'Create Document'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
-      {/* ── Inline Create Dialog: Message ── */}
-      <Dialog open={showMessageDialog} onOpenChange={setShowMessageDialog}>
-        <DialogContent className="sm:max-w-[480px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
+      {/* ── Inline Create Sheet: Message ── */}
+      <Sheet open={showMessageDialog} onOpenChange={setShowMessageDialog}>
+        <SheetContent side="right" className="sm:max-w-lg w-full overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2 text-base">
               <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center"><MessageSquare className="w-4 h-4 text-violet-600" /></div>
               New Message to {clientName}
-            </DialogTitle>
-            <DialogDescription>Send a message to this client.</DialogDescription>
-          </DialogHeader>
+            </SheetTitle>
+            <SheetDescription>Send a message to this client.</SheetDescription>
+          </SheetHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
@@ -1225,14 +1222,13 @@ function ClientDetailPage({ data, onRefresh, openDetail, onNavigate, documentsDa
               {msgErrors.body && <p className="text-[10px] text-red-500">{msgErrors.body}</p>}
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setShowMessageDialog(false)} disabled={msgLoading}>Cancel</Button>
+          <SheetFooter>
             <Button size="sm" className="bg-violet-600 hover:bg-violet-700 text-white" onClick={handleCreateMessage} disabled={msgLoading}>
               {msgLoading ? 'Sending...' : 'Send Message'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

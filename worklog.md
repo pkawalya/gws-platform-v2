@@ -1,95 +1,76 @@
----
-Task ID: 1
-Agent: Main Agent
-Task: Improve the design of GWS Platform V2 pages
+# GWS Platform V2 — Worklog
 
-Work Log:
-- Read all existing blade templates, Filament resources, and Livewire components
-- Identified empty shell resources (Organizations, Branches) with no tables/forms/infolists
-- Redesigned Client Workspace page with gradient profile header, avatar initials, lifecycle badges, quick stats row
-- Added "Create New" dropdown with quick-create for Survey Project, Invoice, Quotation, Note, and SMS
-- Replaced emoji tab icons with proper SVG stroke icons in tab navigation
-- Updated tab design from underlined tabs to pill-style tabs with active state highlights
-- Improved all 6 Livewire component views with consistent rounded-2xl card design
-- Upgraded stat cards with decorative circular backgrounds and better icon containers
-- Unified color scheme: emerald for success, blue for primary, amber for warnings, red for danger
-- Filled in Organization Filament resource: table columns, form fields, infolist entries
-- Filled in Branch Filament resource: table columns, form fields, infolist entries
-- Added CSV export button to Client list page
-- Improved empty states across all blocks with dashed borders and action buttons
-- Better progress bars and collection rate indicators
-- Upgraded modal designs with backdrop blur and rounded corners
-- Improved approval timeline with step icons and progress bars
-- Enhanced AI Insights with gradient branding and call history table
-- Consistent rounded-xl/2xl corners throughout all components
+## Session: 2026-06-02
 
-Stage Summary:
-- 12 files created or significantly modified
-- Client Workspace: completely redesigned with modern profile header and quick-create dropdown
-- All 6 Livewire blocks: unified design language with rounded-2xl cards
-- Organizations & Branches: fully implemented Filament resources (previously empty shells)
-- Client list: added CSV export action
-- Design system: consistent rounded corners, icon containers, color-coded badges, decorative stat card backgrounds
----
-Task ID: 1
-Agent: Main Agent
-Task: Build Dynamic Role Permissions Manager for GWS Platform V2
+### Feature 1: Dialog → Sheet Conversion ✅
+- Converted all Dialog/modal forms to Sheet (side panel) components that slide in from the right
+- Files modified:
+  - `src/components/platform/clients-page.tsx` — Create Client Dialog → Sheet
+  - `src/components/platform/projects-page.tsx` — Create Project Dialog → Sheet
+  - `src/components/platform/create-forms.tsx` — CreateClientDialog, CreateProjectDialog, CreateInvoiceDialog all → Sheet
+  - `src/components/platform/detail-page.tsx` — Project, Invoice, Document, Message dialogs → Sheet
+- All sheets use `side="right"` with `sm:max-w-lg w-full overflow-y-auto`
+- Removed Cancel buttons (Sheet has built-in X close button)
+- Replaced DialogFooter with SheetFooter (only submit button remains)
 
-Work Log:
-- Updated Prisma schema with 5 new models: User, Role, Permission, UserRole, RolePermission
-- Pushed schema changes to PostgreSQL database (27 tables total now)
-- Created 6 API route files: /api/users, /api/users/[id], /api/roles, /api/roles/[id], /api/permissions
-- Built comprehensive RolePermissionsPage component (~700 lines) with:
-  - Users tab: Table with avatar, roles, status, CRUD operations
-  - Roles tab: Card grid with color-coded roles, permission counts, user counts
-  - Permissions tab: Module-organized permissions view with role counts
-  - Create/Edit User dialog with role assignment
-  - Create/Edit Role dialog with color picker and permission selection
-  - Assign Roles dialog for users
-  - Permission Matrix dialog with toggle switches per module
-  - Delete confirmation dialogs
-- Updated micro-server.py with full in-memory CRUD for users/roles/permissions
-  - Added dynamic data stores and enrichment functions
-  - Added 7 default roles with proper permission assignments
-  - Added 8 default users with role assignments
-  - Added 54 permissions across 16 modules
-  - Full CRUD support: GET, POST, PATCH, DELETE for all new endpoints
-- Updated types.ts to add 'role-permissions' PageId
-- Updated page.tsx to add navigation item, import, and rendering
-- Updated dev.sh to fetch users/roles/permissions API data
-- Built and tested the application successfully
+### Feature 2: Uganda Administrative Hierarchy ✅
+- Replaced simple UGANDA_DISTRICTS array with comprehensive UGANDA_HIERARCHY data structure
+- Structure: Region → District → County → Subcounty → Parish → Village
+- Includes 4 regions (Central, Eastern, Northern, Western) with 6-8 districts each
+- All districts have 2-3 counties, each county has subcounties and parishes
+- Added helper functions:
+  - `getRegions()` — returns all region names
+  - `getDistrictsForRegion(region)` — returns districts in a region
+  - `getCountiesForDistrict(district)` — returns counties in a district
+  - `getSubcountiesForCounty(district, county)` — returns subcounties
+  - `getParishesForSubcounty(district, county, subcounty)` — returns parishes
+  - `findRegionForDistrict(district)` — reverse lookup
+- Updated client forms in clients-page.tsx and create-forms.tsx to use cascading dropdowns (Region → District → County → Subcounty → Parish)
+- Updated project forms to use Select dropdown instead of autocomplete
 
-Stage Summary:
-- Dynamic Role Permissions Manager is fully functional
-- 7 system roles pre-configured: Super Admin, Administrator, Survey Manager, Surveyor, Finance Officer, Client Relations, Viewer
-- 54 permissions across 16 modules (dashboard, clients, projects, approvals, finance, workflows, field-sync, spatial, ai, documents, communications, organizations, reports, audit, settings, users)
-- 8 sample users pre-seeded with appropriate role assignments
-- Full CRUD operations supported through both Next.js API routes and micro-server
-- All API endpoints verified working: /api/users, /api/roles, /api/permissions
+### Feature 3: ID Scanning with Auto-fill ✅
+- Created API route: `src/app/api/scan-id/route.ts`
+  - Accepts POST with base64-encoded image
+  - Uses z-ai-web-dev-sdk VLM to analyze Ugandan National ID
+  - Returns extracted fields: first_name, last_name, date_of_birth, nin, district, gender
+- Added "Scan National ID" button to client creation form in clients-page.tsx
+  - Opens file picker to upload ID image
+  - Shows scanning state with spinner
+  - Shows success with green checkmark: "ID scanned - fields auto-filled"
+  - Shows error state: "Scan failed - fill manually"
+  - Auto-fills: first_name, last_name, district, region (auto-detected from district)
 
----
-Task ID: 2
-Agent: Main Agent
-Task: Build dynamic workflows system for GWS Platform V2
+### Feature 4: Offline Mode ✅
+- Created `src/lib/offline-db.ts` — IndexedDB wrapper
+  - Database: 'gws-offline-db' with 3 object stores
+  - Stores: cached-data, sync-queue, offline-settings
+  - Methods: put, get, addToSyncQueue, getSyncQueue, removeFromSyncQueue, clearAll, getCacheStats, setSetting, getSetting
+- Created `src/lib/offline-fetch.ts` — Offline-aware fetch wrapper
+  - Wraps fetch() with offline fallback
+  - GET requests: network first, cache fallback
+  - POST/PATCH/DELETE: queue for sync when offline
+  - Helper functions: isOnline, getSyncQueueCount, processSyncQueue
+- Created `src/hooks/use-offline.ts` — React hook
+  - Tracks online/offline status
+  - Returns: isOnline, isOffline, lastSyncTime, syncQueueCount, isSyncing, syncNow
+  - Auto-processes sync queue when coming back online
+- Created `src/components/platform/offline-indicator.tsx` — UI component
+  - Online: green dot + "Online" + last sync time
+  - Offline: amber dot + "Offline" + pending sync count
+  - Syncing: spinning icon + "Syncing..."
+- Updated `src/app/page.tsx`
+  - Replaced "Live" badge with OfflineIndicator component
+  - Integrated useOffline hook
+- Updated `src/components/platform/settings-page.tsx`
+  - Added "Offline & Sync" tab
+  - Toggle for enabling offline mode
+  - Cache retention period setting (1/7/30 days)
+  - Data to cache checkboxes (Clients, Projects, Invoices, Documents)
+  - Cache & Sync Status dashboard (cached items, pending sync, last sync time)
+  - "Sync Now" and "Clear Cache" buttons
 
-Work Log:
-- Analyzed existing project state: Prisma schema with WorkflowDefinition, WorkflowStep, WorkflowInstance, WorkflowTransition models already defined
-- Examined existing read-only WorkflowsPage component and workflows API endpoint
-- Created new API routes: POST/GET /api/workflows, PATCH/DELETE /api/workflows/[id], PUT/POST /api/workflows/[id]/steps, POST/GET /api/workflow-instances, PATCH /api/workflow-instances/[id]
-- Built comprehensive dynamic WorkflowsPage with: workflow template builder, step editor with reorder, launch instance dialog, instance advance/reject/cancel actions, live preview, search, tabs for templates/active/completed
-- Updated main page.tsx to pass onToast, onRefresh, projects, and clients props to WorkflowsPage
-- Added workflow page refresh to pageRefreshMap
-- Updated Python micro-server (micro-server.py) with full workflow CRUD: create/update/delete definitions, bulk step update, create instances, advance/reject/cancel instances
-- Changed Python server from ThreadingMixIn to single-threaded for stability
-- Added auto-restart loop script for server resilience
-- Tested all API endpoints: GET workflows, POST create workflow, POST launch instance, PATCH advance instance
-
-Stage Summary:
-- Full dynamic workflow builder with visual step editor
-- 6 step types: approval, review, notification, data_entry, condition, automated
-- Step properties: name, type, assignee, SLA hours, required flag, auto-assign flag
-- Workflow lifecycle: create template → launch instance → advance through steps → complete
-- Instance actions: approve & advance, reject, cancel
-- Visual step timeline with progress indicators
-- All 3 API layers: Next.js routes, Python micro-server, Prisma models
-- Server running on port 3000 with auto-restart
+### Build Verification
+- `npx next build` — ✅ Compiled successfully
+- All 26 pages generated
+- Server running on port 3000 — ✅ HTTP 200
+- API endpoints functional — ✅ Dashboard returns data

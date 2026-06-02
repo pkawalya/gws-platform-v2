@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Settings, User, Building2, Palette, Bell, Globe, Shield, Monitor,
-  Moon, Sun, Save, RotateCcw, CheckCircle2, Clock3,
+  Moon, Sun, Save, RotateCcw, CheckCircle2, Clock3, Database, RefreshCw, HardDrive, Wifi, WifiOff, Cloud, MapPin, Users, Receipt, FileText,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -128,6 +128,9 @@ export function SettingsPage({ darkMode, toggleDarkMode }: SettingsPageProps) {
           </TabsTrigger>
           <TabsTrigger value="regional" className="text-xs">
             <Globe className="w-3.5 h-3.5 mr-1.5" />Regional
+          </TabsTrigger>
+          <TabsTrigger value="offline" className="text-xs">
+            <Database className="w-3.5 h-3.5 mr-1.5" />Offline & Sync
           </TabsTrigger>
         </TabsList>
 
@@ -485,7 +488,201 @@ export function SettingsPage({ darkMode, toggleDarkMode }: SettingsPageProps) {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Offline & Sync Tab */}
+        <TabsContent value="offline" className="space-y-6">
+          <OfflineSyncSettings />
+        </TabsContent>
       </Tabs>
     </div>
+  )
+}
+
+// ── Offline & Sync Settings Component ──
+function OfflineSyncSettings() {
+  const [offlineEnabled, setOfflineEnabled] = useState(true)
+  const [autoSync, setAutoSync] = useState(true)
+  const [cacheRetention, setCacheRetention] = useState('7')
+  const [cacheClients, setCacheClients] = useState(true)
+  const [cacheProjects, setCacheProjects] = useState(true)
+  const [cacheInvoices, setCacheInvoices] = useState(true)
+  const [cacheDocuments, setCacheDocuments] = useState(false)
+  const [cacheStats, setCacheStats] = useState<{ cacheSize: number; lastSyncTime: number | null; queueCount: number } | null>(null)
+  const [isSyncing, setIsSyncing] = useState(false)
+
+  // Load cache stats
+  useEffect(() => {
+    loadStats()
+  }, [])
+
+  const loadStats = async () => {
+    try {
+      const { getOfflineDB } = await import('@/lib/offline-db')
+      const db = getOfflineDB()
+      const stats = await db.getCacheStats()
+      setCacheStats(stats)
+    } catch (e) {
+      console.error('Failed to load cache stats:', e)
+    }
+  }
+
+  const handleClearCache = async () => {
+    try {
+      const { getOfflineDB } = await import('@/lib/offline-db')
+      const db = getOfflineDB()
+      await db.clearAll()
+      await loadStats()
+      toast.success('Cache cleared successfully')
+    } catch (e) {
+      toast.error('Failed to clear cache')
+    }
+  }
+
+  const handleSyncNow = async () => {
+    setIsSyncing(true)
+    try {
+      const { processSyncQueue } = await import('@/lib/offline-fetch')
+      const result = await processSyncQueue()
+      await loadStats()
+      if (result.failed > 0) {
+        toast.warning(`Synced ${result.processed} items, ${result.failed} failed`)
+      } else {
+        toast.success(`Synced ${result.processed} items successfully`)
+      }
+    } catch (e) {
+      toast.error('Sync failed')
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
+  const formatTime = (time: number | null) => {
+    if (!time) return 'Never'
+    return new Date(time).toLocaleString()
+  }
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Offline Mode</CardTitle>
+          <CardDescription className="text-xs">Configure offline capabilities for use in areas with unreliable internet</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
+            <div className="flex items-center gap-3">
+              <WifiOff className="w-5 h-5 text-amber-600" />
+              <div>
+                <p className="text-sm font-medium">Enable Offline Mode</p>
+                <p className="text-[11px] text-slate-500">Cache data locally for offline access</p>
+              </div>
+            </div>
+            <Switch checked={offlineEnabled} onCheckedChange={setOfflineEnabled} />
+          </div>
+
+          <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
+            <div className="flex items-center gap-3">
+              <RefreshCw className="w-5 h-5 text-blue-600" />
+              <div>
+                <p className="text-sm font-medium">Auto-Sync</p>
+                <p className="text-[11px] text-slate-500">Automatically sync queued operations when back online</p>
+              </div>
+            </div>
+            <Switch checked={autoSync} onCheckedChange={setAutoSync} />
+          </div>
+
+          <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
+            <div className="flex items-center gap-3">
+              <Clock3 className="w-5 h-5 text-emerald-600" />
+              <div>
+                <p className="text-sm font-medium">Cache Retention</p>
+                <p className="text-[11px] text-slate-500">How long to keep cached data</p>
+              </div>
+            </div>
+            <Select value={cacheRetention} onValueChange={setCacheRetention}>
+              <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1 Day</SelectItem>
+                <SelectItem value="7">7 Days</SelectItem>
+                <SelectItem value="30">30 Days</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Data to Cache</CardTitle>
+          <CardDescription className="text-xs">Choose which data types to store locally</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {[
+            { key: 'clients', label: 'Clients', desc: 'Client directory and details', checked: cacheClients, onChange: setCacheClients, icon: Users },
+            { key: 'projects', label: 'Survey Projects', desc: 'Project data and locations', checked: cacheProjects, onChange: setCacheProjects, icon: MapPin },
+            { key: 'invoices', label: 'Invoices', desc: 'Financial records', checked: cacheInvoices, onChange: setCacheInvoices, icon: Receipt },
+            { key: 'documents', label: 'Documents', desc: 'Document metadata (not files)', checked: cacheDocuments, onChange: setCacheDocuments, icon: FileText },
+          ].map(item => (
+            <div key={item.key} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors">
+              <div className="flex items-center gap-3">
+                <item.icon className="w-5 h-5 text-slate-600" />
+                <div>
+                  <p className="text-sm font-medium">{item.label}</p>
+                  <p className="text-[11px] text-slate-500">{item.desc}</p>
+                </div>
+              </div>
+              <Switch checked={item.checked} onCheckedChange={item.onChange} />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Cache & Sync Status</CardTitle>
+          <CardDescription className="text-xs">View and manage your offline data</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-3 gap-4">
+            <div className="p-4 rounded-xl bg-slate-50 text-center border">
+              <HardDrive className="w-5 h-5 text-slate-500 mx-auto mb-1" />
+              <p className="text-2xl font-bold">{cacheStats?.cacheSize || 0}</p>
+              <p className="text-[11px] text-slate-500">Cached Items</p>
+            </div>
+            <div className="p-4 rounded-xl bg-amber-50 text-center border border-amber-100">
+              <Cloud className="w-5 h-5 text-amber-500 mx-auto mb-1" />
+              <p className="text-2xl font-bold">{cacheStats?.queueCount || 0}</p>
+              <p className="text-[11px] text-slate-500">Pending Sync</p>
+            </div>
+            <div className="p-4 rounded-xl bg-emerald-50 text-center border border-emerald-100">
+              <Clock3 className="w-5 h-5 text-emerald-500 mx-auto mb-1" />
+              <p className="text-sm font-bold">{formatTime(cacheStats?.lastSyncTime || null)}</p>
+              <p className="text-[11px] text-slate-500">Last Sync</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700"
+              onClick={handleSyncNow}
+              disabled={isSyncing || (cacheStats?.queueCount || 0) === 0}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? 'Syncing...' : 'Sync Now'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={handleClearCache}
+            >
+              <Database className="w-3.5 h-3.5 mr-1" />
+              Clear Cache
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </>
   )
 }

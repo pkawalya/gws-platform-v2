@@ -13,6 +13,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { MapPin, Search, Database, LayoutDashboard, Users, ShieldCheck, Receipt, GitBranch, Smartphone, Layers, Brain, ScrollText, MessageSquare, FileText, Building2, BarChart2, Moon, Sun, Command, Settings, Shield } from 'lucide-react'
 import { toast } from 'sonner'
+import { useOffline } from '@/hooks/use-offline'
+import { OfflineIndicator } from '@/components/platform/offline-indicator'
 
 // Platform components
 import type { PageId, ClientRecord, ProjectRecord, DetailPanelState, NavItem } from '@/components/platform/types'
@@ -93,6 +95,7 @@ export default function GWSPlatform() {
   const [commandOpen, setCommandOpen] = useState(false)
 
   const { dark, toggle: toggleDark } = useDarkMode()
+  const offline = useOffline()
 
   // ── Toast wrapper ──
   const showToast = useCallback((type: 'success' | 'error', message: string) => {
@@ -582,10 +585,13 @@ export default function GWSPlatform() {
             <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={toggleDark} title={dark ? 'Switch to light mode' : 'Switch to dark mode'}>
               {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>
-            <Badge variant="outline" className="text-emerald-700 border-emerald-200 bg-emerald-50 text-[10px] hidden sm:flex dark:text-emerald-400 dark:border-emerald-800 dark:bg-emerald-950">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse" />
-              Live
-            </Badge>
+            <OfflineIndicator
+              isOnline={offline.isOnline}
+              isSyncing={offline.isSyncing}
+              syncQueueCount={offline.syncQueueCount}
+              lastSyncTime={offline.lastSyncTime}
+              onSyncNow={offline.syncNow}
+            />
           </div>
         </header>
 

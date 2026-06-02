@@ -8,13 +8,13 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetDescription } from '@/components/ui/sheet'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { ChevronRight, Phone, Mail, Plus, Search, SlidersHorizontal, Users, Inbox, Filter, Download, FileSpreadsheet } from 'lucide-react'
-import { fmt, statusBadge, UGANDA_DISTRICTS } from './constants'
+import { ChevronRight, Phone, Mail, Plus, Search, SlidersHorizontal, Users, Inbox, Filter, Download, FileSpreadsheet, ScanLine, CheckCircle2, Loader2 } from 'lucide-react'
+import { fmt, statusBadge, getRegions, getDistrictsForRegion, getCountiesForDistrict, getSubcountiesForCounty, getParishesForSubcounty, findRegionForDistrict } from './constants'
 import { SortableHeader } from './helpers'
 import { DataTablePagination } from './data-table-pagination'
 import type { ClientRecord } from './types'
@@ -43,10 +43,58 @@ export function ClientsPage({ clients, search, openDetail, selectedIds, toggleSe
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
-  const [createForm, setCreateForm] = useState({ client_type: 'individual', first_name: '', last_name: '', company_name: '', email: '', phone: '', district: '', status: 'prospect', notes: '' })
+  const [createForm, setCreateForm] = useState({ client_type: 'individual', first_name: '', last_name: '', company_name: '', email: '', phone: '', district: '', region: '', county: '', subcounty: '', parish: '', status: 'prospect', notes: '' })
   const [visibleColumns, setVisibleColumns] = useState<VisibleColumns>({ ref: true, district: true, contact: false, status: true, projects: true })
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
-  const [districtSuggestions, setDistrictSuggestions] = useState<string[]>([])
+  const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'success' | 'error'>('idle')
+
+  // Scan National ID handler
+  const handleScanID = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+      setScanStatus('scanning')
+      try {
+        const reader = new FileReader()
+        const base64 = await new Promise<string>((resolve) => {
+          reader.onload = () => resolve(reader.result as string)
+          reader.readAsDataURL(file)
+        })
+        const res = await fetch('/api/scan-id', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: base64 }),
+        })
+        const data = await res.json()
+        if (data.success && data.data) {
+          const { first_name, last_name, district, gender } = data.data
+          setCreateForm(f => ({
+            ...f,
+            first_name: first_name || f.first_name,
+            last_name: last_name || f.last_name,
+            district: district || f.district,
+            region: district ? findRegionForDistrict(district) : f.region,
+          }))
+          setScanStatus('success')
+          onToast?.('success', 'ID scanned - fields auto-filled')
+          setTimeout(() => setScanStatus('idle'), 3000)
+        } else {
+          setScanStatus('error')
+          onToast?.('error', 'Could not read ID. Please fill manually.')
+          setTimeout(() => setScanStatus('idle'), 3000)
+        }
+      } catch (err) {
+        console.error(err)
+        setScanStatus('error')
+        onToast?.('error', 'Failed to scan ID')
+        setTimeout(() => setScanStatus('idle'), 3000)
+      }
+    }
+    input.click()
+  }
 
   // CSV Export handler
   const handleExport = () => {
@@ -117,7 +165,7 @@ export function ClientsPage({ clients, search, openDetail, selectedIds, toggleSe
       })
       if (res.ok) {
         setShowCreateDialog(false)
-        setCreateForm({ client_type: 'individual', first_name: '', last_name: '', company_name: '', email: '', phone: '', district: '', status: 'prospect', notes: '' })
+        setCreateForm({ client_type: 'individual', first_name: '', last_name: '', company_name: '', email: '', phone: '', district: '', region: '', county: '', subcounty: '', parish: '', status: 'prospect', notes: '' })
         setFormErrors({})
         onRefresh?.()
         onToast?.('success', 'Client created successfully')
@@ -130,14 +178,7 @@ export function ClientsPage({ clients, search, openDetail, selectedIds, toggleSe
     }
   }
 
-  const handleDistrictChange = (value: string) => {
-    setCreateForm({ ...createForm, district: value })
-    if (value.length > 0) {
-      setDistrictSuggestions(UGANDA_DISTRICTS.filter(d => d.toLowerCase().startsWith(value.toLowerCase())).slice(0, 5))
-    } else {
-      setDistrictSuggestions([])
-    }
-  }
+
 
   return (
     <div className="space-y-4">
@@ -288,17 +329,38 @@ export function ClientsPage({ clients, search, openDetail, selectedIds, toggleSe
         </CardContent>
       </Card>
 
-      {/* Create Client Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+      {/* Create Client Sheet */}
+      <Sheet open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <SheetContent side="right" className="sm:max-w-lg w-full overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center"><Users className="w-4 h-4 text-emerald-600" /></div>
               New Client
-            </DialogTitle>
-            <DialogDescription>Add a new client to the platform</DialogDescription>
-          </DialogHeader>
+            </SheetTitle>
+            <SheetDescription>Add a new client to the platform</SheetDescription>
+          </SheetHeader>
           <div className="grid gap-4 py-4">
+            {/* Scan National ID */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 text-xs gap-1.5 border-emerald-200 hover:bg-emerald-50 text-emerald-700"
+                onClick={handleScanID}
+                disabled={scanStatus === 'scanning'}
+              >
+                {scanStatus === 'scanning' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ScanLine className="w-3.5 h-3.5" />}
+                {scanStatus === 'scanning' ? 'Scanning...' : 'Scan National ID'}
+              </Button>
+              {scanStatus === 'success' && (
+                <span className="flex items-center gap-1 text-xs text-emerald-600">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> ID scanned - fields auto-filled
+                </span>
+              )}
+              {scanStatus === 'error' && (
+                <span className="text-xs text-red-500">Scan failed - fill manually</span>
+              )}
+            </div>
             {/* Type & Status Section */}
             <div className="space-y-2">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Classification</p>
@@ -363,33 +425,70 @@ export function ClientsPage({ clients, search, openDetail, selectedIds, toggleSe
               </div>
             </div>
 
-            {/* Location Section */}
+            {/* Location Section - Cascading Dropdowns */}
             <div className="space-y-2">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Location</p>
-              <div className="relative">
-                <Label className="text-xs">District</Label>
-                <Input className="h-9 text-xs mt-1" value={createForm.district} onChange={e => handleDistrictChange(e.target.value)} placeholder="Start typing..." />
-                {districtSuggestions.length > 0 && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-32 overflow-y-auto">
-                    {districtSuggestions.map(d => (
-                      <button key={d} className="w-full text-left px-3 py-1.5 text-xs hover:bg-emerald-50 transition-colors" onClick={() => { setCreateForm({ ...createForm, district: d }); setDistrictSuggestions([]) }}>
-                        {d}
-                      </button>
-                    ))}
-                  </div>
-                )}
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Location (Uganda Administrative Hierarchy)</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs">Region</Label>
+                  <Select value={createForm.region} onValueChange={v => setCreateForm({ ...createForm, region: v, district: '', county: '', subcounty: '', parish: '' })}>
+                    <SelectTrigger className="h-9 text-xs mt-1"><SelectValue placeholder="Select region" /></SelectTrigger>
+                    <SelectContent>
+                      {getRegions().map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">District</Label>
+                  <Select value={createForm.district} onValueChange={v => setCreateForm({ ...createForm, district: v, county: '', subcounty: '', parish: '' })} disabled={!createForm.region}>
+                    <SelectTrigger className="h-9 text-xs mt-1"><SelectValue placeholder="Select district" /></SelectTrigger>
+                    <SelectContent>
+                      {getDistrictsForRegion(createForm.region).map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs">County</Label>
+                  <Select value={createForm.county} onValueChange={v => setCreateForm({ ...createForm, county: v, subcounty: '', parish: '' })} disabled={!createForm.district}>
+                    <SelectTrigger className="h-9 text-xs mt-1"><SelectValue placeholder="Select county" /></SelectTrigger>
+                    <SelectContent>
+                      {getCountiesForDistrict(createForm.district).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Subcounty</Label>
+                  <Select value={createForm.subcounty} onValueChange={v => setCreateForm({ ...createForm, subcounty: v, parish: '' })} disabled={!createForm.county}>
+                    <SelectTrigger className="h-9 text-xs mt-1"><SelectValue placeholder="Select subcounty" /></SelectTrigger>
+                    <SelectContent>
+                      {getSubcountiesForCounty(createForm.district, createForm.county).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs">Parish</Label>
+                  <Select value={createForm.parish} onValueChange={v => setCreateForm({ ...createForm, parish: v })} disabled={!createForm.subcounty}>
+                    <SelectTrigger className="h-9 text-xs mt-1"><SelectValue placeholder="Select parish" /></SelectTrigger>
+                    <SelectContent>
+                      {getParishesForSubcounty(createForm.district, createForm.county, createForm.subcounty).map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
             {/* Notes */}
             <div><Label className="text-xs">Notes</Label><Textarea className="text-xs mt-1" rows={2} value={createForm.notes} onChange={e => setCreateForm({ ...createForm, notes: e.target.value })} /></div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => { setShowCreateDialog(false); setFormErrors({}) }}>Cancel</Button>
+          <SheetFooter>
             <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={handleCreate}>Create Client</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

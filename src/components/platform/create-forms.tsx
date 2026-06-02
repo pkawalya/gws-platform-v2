@@ -2,15 +2,15 @@
 
 import { useState } from 'react'
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from '@/components/ui/dialog'
+  Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle,
+} from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { UGANDA_DISTRICTS } from './constants'
+import { UGANDA_DISTRICTS, getRegions, getDistrictsForRegion, getCountiesForDistrict, getSubcountiesForCounty, getParishesForSubcounty } from './constants'
 
 interface CreateClientDialogProps {
   open: boolean
@@ -29,10 +29,13 @@ export function CreateClientDialog({ open, onOpenChange, onSuccess, onToast }: C
     email: '',
     phone: '',
     district: '',
+    region: '',
+    county: '',
+    subcounty: '',
+    parish: '',
     status: 'prospect',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [districtSuggestions, setDistrictSuggestions] = useState<string[]>([])
 
   const validate = () => {
     const errs: Record<string, string> = {}
@@ -59,7 +62,7 @@ export function CreateClientDialog({ open, onOpenChange, onSuccess, onToast }: C
       if (res.ok) {
         onSuccess()
         onOpenChange(false)
-        setForm({ client_type: 'individual', first_name: '', last_name: '', company_name: '', email: '', phone: '', district: '', status: 'prospect' })
+        setForm({ client_type: 'individual', first_name: '', last_name: '', company_name: '', email: '', phone: '', district: '', region: '', county: '', subcounty: '', parish: '', status: 'prospect' })
         setErrors({})
         onToast?.('success', 'Client created successfully')
       } else {
@@ -73,27 +76,18 @@ export function CreateClientDialog({ open, onOpenChange, onSuccess, onToast }: C
     }
   }
 
-  const handleDistrictChange = (value: string) => {
-    setForm(f => ({ ...f, district: value }))
-    if (value.length > 0) {
-      setDistrictSuggestions(UGANDA_DISTRICTS.filter(d => d.toLowerCase().startsWith(value.toLowerCase())).slice(0, 5))
-    } else {
-      setDistrictSuggestions([])
-    }
-  }
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base">
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="sm:max-w-lg w-full overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2 text-base">
             <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
               <span className="text-emerald-600 text-sm">👤</span>
             </div>
             Add New Client
-          </DialogTitle>
-          <DialogDescription>Create a new client record in the system.</DialogDescription>
-        </DialogHeader>
+          </SheetTitle>
+          <SheetDescription>Create a new client record in the system.</SheetDescription>
+        </SheetHeader>
         <div className="grid gap-5 py-4">
           {/* Classification Section */}
           <div className="space-y-3">
@@ -175,35 +169,72 @@ export function CreateClientDialog({ open, onOpenChange, onSuccess, onToast }: C
             </div>
           </div>
 
-          {/* Location Section */}
+          {/* Location Section - Cascading Dropdowns */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Location</p>
               <Separator className="flex-1" />
             </div>
-            <div className="relative grid gap-1.5">
-              <Label className="text-xs">District</Label>
-              <Input className="h-9 text-sm" value={form.district} onChange={e => handleDistrictChange(e.target.value)} placeholder="Start typing..." />
-              {districtSuggestions.length > 0 && (
-                <div className="absolute z-50 w-full top-full mt-1 bg-white border rounded-md shadow-lg max-h-32 overflow-y-auto">
-                  {districtSuggestions.map(d => (
-                    <button key={d} className="w-full text-left px-3 py-1.5 text-xs hover:bg-emerald-50 transition-colors" onClick={() => { setForm(f => ({ ...f, district: d })); setDistrictSuggestions([]) }}>
-                      {d}
-                    </button>
-                  ))}
-                </div>
-              )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Region</Label>
+                <Select value={form.region} onValueChange={v => setForm(f => ({ ...f, region: v, district: '', county: '', subcounty: '', parish: '' }))}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select region" /></SelectTrigger>
+                  <SelectContent>
+                    {getRegions().map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs">District</Label>
+                <Select value={form.district} onValueChange={v => setForm(f => ({ ...f, district: v, county: '', subcounty: '', parish: '' }))} disabled={!form.region}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select district" /></SelectTrigger>
+                  <SelectContent>
+                    {getDistrictsForRegion(form.region).map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label className="text-xs">County</Label>
+                <Select value={form.county} onValueChange={v => setForm(f => ({ ...f, county: v, subcounty: '', parish: '' }))} disabled={!form.district}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select county" /></SelectTrigger>
+                  <SelectContent>
+                    {getCountiesForDistrict(form.district).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Subcounty</Label>
+                <Select value={form.subcounty} onValueChange={v => setForm(f => ({ ...f, subcounty: v, parish: '' }))} disabled={!form.county}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select subcounty" /></SelectTrigger>
+                  <SelectContent>
+                    {getSubcountiesForCounty(form.district, form.county).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label className="text-xs">Parish</Label>
+                <Select value={form.parish} onValueChange={v => setForm(f => ({ ...f, parish: v }))} disabled={!form.subcounty}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select parish" /></SelectTrigger>
+                  <SelectContent>
+                    {getParishesForSubcounty(form.district, form.county, form.subcounty).map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => { onOpenChange(false); setErrors({}) }} disabled={loading}>Cancel</Button>
+        <SheetFooter>
           <Button onClick={handleSubmit} disabled={loading} className="bg-emerald-600 hover:bg-emerald-700">
             {loading ? 'Creating...' : 'Create Client'}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   )
 }
 
@@ -226,7 +257,6 @@ export function CreateProjectDialog({ open, onOpenChange, onSuccess, clients, on
     status: 'intake',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [districtSuggestions, setDistrictSuggestions] = useState<string[]>([])
 
   const validate = () => {
     const errs: Record<string, string> = {}
@@ -262,27 +292,18 @@ export function CreateProjectDialog({ open, onOpenChange, onSuccess, clients, on
     }
   }
 
-  const handleDistrictChange = (value: string) => {
-    setForm(f => ({ ...f, district: value }))
-    if (value.length > 0) {
-      setDistrictSuggestions(UGANDA_DISTRICTS.filter(d => d.toLowerCase().startsWith(value.toLowerCase())).slice(0, 5))
-    } else {
-      setDistrictSuggestions([])
-    }
-  }
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base">
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="sm:max-w-lg w-full overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2 text-base">
             <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
               <span className="text-emerald-600 text-sm">📍</span>
             </div>
             New Survey Project
-          </DialogTitle>
-          <DialogDescription>Create a new survey project for a client.</DialogDescription>
-        </DialogHeader>
+          </SheetTitle>
+          <SheetDescription>Create a new survey project for a client.</SheetDescription>
+        </SheetHeader>
         <div className="grid gap-5 py-4">
           {/* Project Details */}
           <div className="space-y-3">
@@ -352,29 +373,21 @@ export function CreateProjectDialog({ open, onOpenChange, onSuccess, clients, on
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Location</p>
               <Separator className="flex-1" />
             </div>
-            <div className="relative grid gap-1.5">
-              <Label className="text-xs">District</Label>
-              <Input className="h-9 text-sm" value={form.district} onChange={e => handleDistrictChange(e.target.value)} placeholder="Start typing..." />
-              {districtSuggestions.length > 0 && (
-                <div className="absolute z-50 w-full top-full mt-1 bg-white border rounded-md shadow-lg max-h-32 overflow-y-auto">
-                  {districtSuggestions.map(d => (
-                    <button key={d} className="w-full text-left px-3 py-1.5 text-xs hover:bg-emerald-50 transition-colors" onClick={() => { setForm(f => ({ ...f, district: d })); setDistrictSuggestions([]) }}>
-                      {d}
-                    </button>
-                  ))}
-                </div>
-              )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label className="text-xs">District</Label>
+                <Input className="h-9 text-sm" value={form.district} onChange={e => setForm(f => ({ ...f, district: e.target.value }))} placeholder="District" />
+              </div>
             </div>
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => { onOpenChange(false); setErrors({}) }} disabled={loading}>Cancel</Button>
+        <SheetFooter>
           <Button onClick={handleSubmit} disabled={loading || !form.client_id} className="bg-emerald-600 hover:bg-emerald-700">
             {loading ? 'Creating...' : 'Create Project'}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   )
 }
 
@@ -446,17 +459,17 @@ export function CreateInvoiceDialog({ open, onOpenChange, onSuccess, clients, on
   const totalPreview = (parseFloat(form.amount) || 0) + (parseFloat(form.tax_amount) || 0)
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base">
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="sm:max-w-lg w-full overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2 text-base">
             <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
               <span className="text-emerald-600 text-sm">💰</span>
             </div>
             New Invoice
-          </DialogTitle>
-          <DialogDescription>Create a new invoice for a client.</DialogDescription>
-        </DialogHeader>
+          </SheetTitle>
+          <SheetDescription>Create a new invoice for a client.</SheetDescription>
+        </SheetHeader>
         <div className="grid gap-5 py-4">
           {/* Client Selection */}
           <div className="space-y-3">
@@ -530,13 +543,12 @@ export function CreateInvoiceDialog({ open, onOpenChange, onSuccess, clients, on
             </div>
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => { onOpenChange(false); setErrors({}) }} disabled={loading}>Cancel</Button>
+        <SheetFooter>
           <Button onClick={handleSubmit} disabled={loading || !form.client_id || !form.amount} className="bg-emerald-600 hover:bg-emerald-700">
             {loading ? 'Creating...' : 'Create Invoice'}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   )
 }
