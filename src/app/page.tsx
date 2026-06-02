@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator'
 // Sheet and ScrollArea removed - using full page detail view
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { MapPin, Search, Database, LayoutDashboard, Users, ShieldCheck, Receipt, GitBranch, Smartphone, Layers, Brain, ScrollText, MessageSquare, FileText, Building2, BarChart2, Moon, Sun, Command, Settings, Shield } from 'lucide-react'
+import { MapPin, Search, Database, LayoutDashboard, Users, ShieldCheck, Receipt, GitBranch, Smartphone, Layers, Brain, ScrollText, MessageSquare, FileText, Building2, BarChart2, Moon, Sun, Command, Settings, Shield, FileCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { useOffline } from '@/hooks/use-offline'
 import { OfflineIndicator } from '@/components/platform/offline-indicator'
@@ -33,6 +33,7 @@ import { ApprovalsPage } from '@/components/platform/approvals-page'
 import { AuditTrailPage } from '@/components/platform/audit-trail-page'
 import { OrganizationsPage } from '@/components/platform/organizations-page'
 import { ReportsPage } from '@/components/platform/reports-page'
+import { SurveyReportsPage } from '@/components/platform/survey-reports-page'
 import { SettingsPage } from '@/components/platform/settings-page'
 import { RolePermissionsPage } from '@/components/platform/role-permissions-page'
 import { NotificationCenter } from '@/components/platform/notification-center'
@@ -411,6 +412,7 @@ export default function GWSPlatform() {
     { id: 'organizations', label: 'Organizations', icon: Building2, group: 'System' },
     { id: 'role-permissions', label: 'Roles & Permissions', icon: Shield, group: 'System' },
     { id: 'reports', label: 'Reports', icon: BarChart2, group: 'Intelligence' },
+    { id: 'survey-reports', label: 'Survey Reports', icon: FileCheck, group: 'Core' },
     { id: 'settings', label: 'Settings', icon: Settings, group: 'System' },
   ]
 
@@ -485,6 +487,7 @@ export default function GWSPlatform() {
       case 'audit': return <AuditTrailPage eventsData={eventsData} openDetail={openDetail} selectedIds={selectedIds} toggleSelect={toggleSelect} toggleAll={toggleAll} />
       case 'organizations': return <OrganizationsPage orgsData={orgsData} openDetail={openDetail} />
       case 'reports': return <ReportsPage reportsData={reportsData} openDetail={openDetail} dashData={dashData} />
+      case 'survey-reports': return <SurveyReportsPage clients={clients} projects={projects} onToast={showToast} onRefresh={() => refreshWithDashboard(['/api/projects', '/api/clients'])} />
       case 'role-permissions': return <RolePermissionsPage onToast={showToast} />
       case 'settings': return <SettingsPage darkMode={dark} toggleDarkMode={toggleDark} />
       default: return null
@@ -560,6 +563,7 @@ export default function GWSPlatform() {
                   sync: 'Sync Event', 'ai-model': 'AI Model', invoice: 'Invoice', quotation: 'Quotation',
                   document: 'Document', communication: 'Message', approval: 'Approval',
                   event: 'Event', report: 'Report', organization: 'Organization', layer: 'Layer',
+                  'survey-report': 'Survey Report',
                 }
                 return typeLabels[detailPanel.type] || 'Details'
               })() : (NAV_ITEMS.find(n => n.id === page)?.label || 'Dashboard')}

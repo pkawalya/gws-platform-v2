@@ -568,6 +568,84 @@ model UserRegion {
   @@map("user_regions")
 }
 
+// ── Survey Report Templates ──
+model SurveyReportTemplate {
+  id              String   @id @default(cuid())
+  organization_id String?
+  name            String
+  slug            String   @unique
+  description     String?  @db.Text
+  report_type     String   @default("cadastral")  // cadastral, topographic, boundary, engineering, general
+  category        String   @default("survey")      // survey, valuation, inspection, compliance
+
+  // Template content - structured JSON with sections
+  sections        Json     // Array of section objects: { id, title, type, content, fields[], required }
+  header_text     String?  @db.Text
+  footer_text     String?  @db.Text
+  logo_position   String?  @default("left")
+
+  // Variable placeholders available in the template
+  variables       Json?    // Array of variable definitions: { key, label, type, source, default }
+
+  // Styling
+  page_size       String   @default("A4")
+  orientation     String   @default("portrait")
+  font_family     String   @default("Inter")
+  primary_color   String   @default("#059669")  // Emerald-600
+
+  is_active       Boolean  @default(true)
+  is_default      Boolean  @default(false)
+  version         Int      @default(1)
+  created_by      String?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  reports SurveyReport[]
+
+  @@index([organization_id])
+  @@index([report_type])
+  @@map("survey_report_templates")
+}
+
+model SurveyReport {
+  id              String   @id @default(cuid())
+  organization_id String?
+  template_id     String
+  project_id      BigInt?
+  client_id       BigInt?
+
+  title           String
+  report_number   String   @unique
+  status          String   @default("draft")  // draft, review, approved, delivered
+
+  // The filled-in data - maps variable keys to values
+  data            Json     // { client_name: "...", project_ref: "...", survey_date: "...", ... }
+
+  // Generated content
+  generated_content String?  @db.Text  // The final HTML content after template + data merge
+  pdf_path        String?
+
+  // Review & approval
+  prepared_by     String?
+  reviewed_by     String?
+  approved_by     String?
+  reviewed_at     DateTime?
+  approved_at     DateTime?
+  delivered_at    DateTime?
+
+  notes           String?  @db.Text
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  template SurveyReportTemplate @relation(fields: [template_id], references: [id])
+
+  @@index([template_id])
+  @@index([project_id])
+  @@index([client_id])
+  @@index([status])
+  @@map("survey_reports")
+}
+
 // ── User & Role Management ──
 model User {
   id            String    @id @default(cuid())

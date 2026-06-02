@@ -45,6 +45,295 @@ dynamic_role_permissions = []  # { id, role_id, permission_id }
 dynamic_workflow_defs = []  # Workflow definitions with steps
 dynamic_workflow_instances = []  # Workflow instances
 dynamic_workflow_transitions = []  # Workflow transitions
+dynamic_survey_templates = []  # Survey report templates
+dynamic_survey_reports = []  # Survey reports
+
+# ── Default Survey Report Templates ──
+DEFAULT_SURVEY_TEMPLATES = [
+    {
+        "id": "srt-cadastral",
+        "organization_id": None,
+        "name": "Cadastral Survey Report",
+        "slug": "cadastral-survey-report",
+        "description": "Standard cadastral survey report for land boundary determination and property registration in Uganda. Complies with the Survey Act and Land Act requirements.",
+        "report_type": "cadastral",
+        "category": "survey",
+        "sections": [
+            {"id": "s1", "title": "Cover Page", "type": "cover", "content": "Cadastral Survey Report\n{{project_title}}\n{{district}}, {{sub_county}}, {{parish}}, {{village}}", "fields": [], "required": True},
+            {"id": "s2", "title": "Executive Summary", "type": "text", "content": "This report presents the findings of a cadastral survey conducted on {{survey_date}} for {{client_name}} (Ref: {{client_ref}}). The survey covers approximately {{area_hectares}} hectares of land situated at {{village}}, {{parish}}, {{sub_county}}, {{district}}.", "fields": [], "required": True},
+            {"id": "s3", "title": "Property Description", "type": "text", "content": "The subject property is located at {{village}}, {{parish}} Sub-county, {{district}} District, Uganda.\n\nLand Reference: {{project_ref}}\nApproximate Area: {{area_hectares}} Hectares", "fields": [], "required": True},
+            {"id": "s4", "title": "Survey Methodology", "type": "text", "content": "The survey was carried out using GNSS/GPS receivers and Total Station equipment.\n\nDatum: WGS84 / UTM Zone 36N", "fields": [], "required": True},
+            {"id": "s5", "title": "Boundary Description", "type": "text", "content": "The boundaries of the subject property are described as follows:\n\n{{beacons_list}}", "fields": [], "required": True},
+            {"id": "s6", "title": "Coordinates & Beacons", "type": "coordinates", "content": "The following coordinates define the boundary:", "fields": ["point", "northing", "easting", "beacon_type"], "required": True},
+            {"id": "s7", "title": "Area Computation", "type": "table", "content": "Total Area: {{area_hectares}} Hectares\nComputation Method: Coordinate Geometry", "fields": [], "required": True},
+            {"id": "s8", "title": "Sketch Plan", "type": "image", "content": "[Survey sketch plan to be attached]", "fields": [], "required": False},
+            {"id": "s9", "title": "Recommendations", "type": "text", "content": "1. The surveyed boundaries should be confirmed for registration\n2. Boundary beacons should be maintained\n3. A title deed should be processed", "fields": [], "required": False},
+            {"id": "s10", "title": "Certification", "type": "certification", "content": "I hereby certify that this survey was carried out under my direct supervision.\n\nSigned: ________________________\nName: {{surveyor_name}}\nLicense No: {{surveyor_license}}\nDate: {{preparation_date}}\n\nFor and on behalf of {{organization_name}}", "fields": [], "required": True},
+        ],
+        "header_text": "CADASTRAL SURVEY REPORT — {{project_ref}}",
+        "footer_text": "Confidential — Prepared by {{organization_name}} — {{preparation_date}}",
+        "logo_position": "left",
+        "variables": [
+            {"key": "client_name", "label": "Client Name", "type": "text", "source": "client", "default": ""},
+            {"key": "client_ref", "label": "Client Reference", "type": "text", "source": "client", "default": ""},
+            {"key": "project_ref", "label": "Project Reference", "type": "text", "source": "project", "default": ""},
+            {"key": "project_title", "label": "Project Title", "type": "text", "source": "project", "default": ""},
+            {"key": "district", "label": "District", "type": "text", "source": "project", "default": ""},
+            {"key": "sub_county", "label": "Sub-County", "type": "text", "source": "project", "default": ""},
+            {"key": "parish", "label": "Parish", "type": "text", "source": "project", "default": ""},
+            {"key": "village", "label": "Village", "type": "text", "source": "project", "default": ""},
+            {"key": "area_hectares", "label": "Area (Hectares)", "type": "number", "source": "project", "default": ""},
+            {"key": "survey_date", "label": "Survey Date", "type": "date", "source": "manual", "default": ""},
+            {"key": "surveyor_name", "label": "Surveyor Name", "type": "text", "source": "manual", "default": ""},
+            {"key": "surveyor_license", "label": "Surveyor License No.", "type": "text", "source": "manual", "default": ""},
+            {"key": "organization_name", "label": "Organization Name", "type": "text", "source": "manual", "default": "GWS Surveyors Ltd"},
+            {"key": "coordinates_list", "label": "Coordinates List", "type": "text", "source": "project", "default": ""},
+            {"key": "beacons_list", "label": "Beacons Description", "type": "text", "source": "project", "default": ""},
+            {"key": "preparation_date", "label": "Preparation Date", "type": "date", "source": "manual", "default": ""},
+        ],
+        "page_size": "A4",
+        "orientation": "portrait",
+        "font_family": "Inter",
+        "primary_color": "#059669",
+        "is_active": True,
+        "is_default": True,
+        "version": 1,
+        "created_by": None,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    },
+    {
+        "id": "srt-topographic",
+        "name": "Topographic Survey Report",
+        "slug": "topographic-survey-report",
+        "description": "Comprehensive topographic survey report for engineering design, site planning, and development projects.",
+        "report_type": "topographic",
+        "category": "survey",
+        "sections": [
+            {"id": "s1", "title": "Cover Page", "type": "cover", "content": "Topographic Survey Report\n{{project_title}}\n{{district}}, Uganda", "fields": [], "required": True},
+            {"id": "s2", "title": "Project Overview", "type": "text", "content": "This topographic survey was commissioned by {{client_name}} (Ref: {{client_ref}}) for {{project_title}}. Survey date: {{survey_date}}.", "fields": [], "required": True},
+            {"id": "s3", "title": "Site Description", "type": "text", "content": "Location: {{village}}, {{parish}}, {{sub_county}}, {{district}} District, Uganda.", "fields": [], "required": True},
+            {"id": "s4", "title": "Control Survey", "type": "text", "content": "Datum: WGS84\nProjection: UTM Zone 36N\nVertical Datum: Mean Sea Level (MSL)", "fields": [], "required": True},
+            {"id": "s5", "title": "Topographic Features", "type": "text", "content": "Natural and man-made features surveyed and mapped.", "fields": [], "required": True},
+            {"id": "s6", "title": "Contour Information", "type": "text", "content": "Contour Interval and elevation range details.", "fields": [], "required": True},
+            {"id": "s7", "title": "Utilities & Infrastructure", "type": "text", "content": "Utilities and infrastructure identified within the survey area.", "fields": [], "required": False},
+            {"id": "s8", "title": "Deliverables", "type": "text", "content": "Topographic Survey Plan, DTM, Contour Plan, Coordinate Schedule, Digital Data.", "fields": [], "required": True},
+            {"id": "s9", "title": "Certification", "type": "certification", "content": "I hereby certify that this topographic survey was carried out under my direct supervision.\n\nSigned: ________________________\nName: {{surveyor_name}}\nLicense No: {{surveyor_license}}\nDate: {{preparation_date}}\n\nFor and on behalf of {{organization_name}}", "fields": [], "required": True},
+        ],
+        "header_text": "TOPOGRAPHIC SURVEY REPORT — {{project_ref}}",
+        "footer_text": "Confidential — Prepared by {{organization_name}} — {{preparation_date}}",
+        "logo_position": "left",
+        "variables": [
+            {"key": "client_name", "label": "Client Name", "type": "text", "source": "client", "default": ""},
+            {"key": "client_ref", "label": "Client Reference", "type": "text", "source": "client", "default": ""},
+            {"key": "project_ref", "label": "Project Reference", "type": "text", "source": "project", "default": ""},
+            {"key": "project_title", "label": "Project Title", "type": "text", "source": "project", "default": ""},
+            {"key": "district", "label": "District", "type": "text", "source": "project", "default": ""},
+            {"key": "sub_county", "label": "Sub-County", "type": "text", "source": "project", "default": ""},
+            {"key": "parish", "label": "Parish", "type": "text", "source": "project", "default": ""},
+            {"key": "village", "label": "Village", "type": "text", "source": "project", "default": ""},
+            {"key": "area_hectares", "label": "Area (Hectares)", "type": "number", "source": "project", "default": ""},
+            {"key": "survey_date", "label": "Survey Date", "type": "date", "source": "manual", "default": ""},
+            {"key": "surveyor_name", "label": "Surveyor Name", "type": "text", "source": "manual", "default": ""},
+            {"key": "surveyor_license", "label": "Surveyor License No.", "type": "text", "source": "manual", "default": ""},
+            {"key": "organization_name", "label": "Organization Name", "type": "text", "source": "manual", "default": "GWS Surveyors Ltd"},
+            {"key": "preparation_date", "label": "Preparation Date", "type": "date", "source": "manual", "default": ""},
+        ],
+        "page_size": "A4",
+        "orientation": "portrait",
+        "font_family": "Inter",
+        "primary_color": "#0284c7",
+        "is_active": True,
+        "is_default": True,
+        "version": 1,
+        "created_by": None,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    },
+    {
+        "id": "srt-boundary",
+        "name": "Boundary Dispute Report",
+        "slug": "boundary-dispute-report",
+        "description": "Professional boundary dispute resolution report for contested land boundaries. Suitable for legal proceedings.",
+        "report_type": "boundary",
+        "category": "compliance",
+        "sections": [
+            {"id": "s1", "title": "Cover Page", "type": "cover", "content": "Boundary Dispute Investigation Report\n{{project_title}}\n{{district}}, Uganda", "fields": [], "required": True},
+            {"id": "s2", "title": "Background", "type": "text", "content": "This report has been prepared following a boundary dispute regarding land at {{village}}, {{parish}}, {{district}}.", "fields": [], "required": True},
+            {"id": "s3", "title": "Claimant Details", "type": "text", "content": "Claimant: {{client_name}} (Ref: {{client_ref}})\nProperty: {{project_title}}\nArea: {{area_hectares}} Hectares", "fields": [], "required": True},
+            {"id": "s4", "title": "Disputed Area Description", "type": "text", "content": "The disputed area is described as follows.", "fields": [], "required": True},
+            {"id": "s5", "title": "Evidence Review", "type": "text", "content": "Title documents, survey plans, and physical evidence examined.", "fields": [], "required": True},
+            {"id": "s6", "title": "Survey Findings", "type": "text", "content": "A resurvey was carried out on {{survey_date}}.", "fields": [], "required": True},
+            {"id": "s7", "title": "Boundary Determination", "type": "text", "content": "Based on evidence and survey findings, the boundary is determined.", "fields": [], "required": True},
+            {"id": "s8", "title": "Recommendations", "type": "text", "content": "The determined boundary should be accepted and demarcated with permanent beacons.", "fields": [], "required": False},
+            {"id": "s9", "title": "Professional Opinion", "type": "certification", "content": "In my professional opinion, the boundary is as described in this report.\n\nSigned: ________________________\nName: {{surveyor_name}}\nLicense No: {{surveyor_license}}\nDate: {{preparation_date}}\n\nFor and on behalf of {{organization_name}}", "fields": [], "required": True},
+        ],
+        "header_text": "BOUNDARY DISPUTE REPORT — {{project_ref}}",
+        "footer_text": "Confidential — Legal Document — Prepared by {{organization_name}}",
+        "logo_position": "left",
+        "variables": [
+            {"key": "client_name", "label": "Client Name", "type": "text", "source": "client", "default": ""},
+            {"key": "client_ref", "label": "Client Reference", "type": "text", "source": "client", "default": ""},
+            {"key": "project_ref", "label": "Project Reference", "type": "text", "source": "project", "default": ""},
+            {"key": "project_title", "label": "Project Title", "type": "text", "source": "project", "default": ""},
+            {"key": "district", "label": "District", "type": "text", "source": "project", "default": ""},
+            {"key": "sub_county", "label": "Sub-County", "type": "text", "source": "project", "default": ""},
+            {"key": "parish", "label": "Parish", "type": "text", "source": "project", "default": ""},
+            {"key": "village", "label": "Village", "type": "text", "source": "project", "default": ""},
+            {"key": "area_hectares", "label": "Area (Hectares)", "type": "number", "source": "project", "default": ""},
+            {"key": "survey_date", "label": "Survey Date", "type": "date", "source": "manual", "default": ""},
+            {"key": "surveyor_name", "label": "Surveyor Name", "type": "text", "source": "manual", "default": ""},
+            {"key": "surveyor_license", "label": "Surveyor License No.", "type": "text", "source": "manual", "default": ""},
+            {"key": "organization_name", "label": "Organization Name", "type": "text", "source": "manual", "default": "GWS Surveyors Ltd"},
+            {"key": "coordinates_list", "label": "Coordinates List", "type": "text", "source": "project", "default": ""},
+            {"key": "beacons_list", "label": "Beacons Description", "type": "text", "source": "project", "default": ""},
+            {"key": "preparation_date", "label": "Preparation Date", "type": "date", "source": "manual", "default": ""},
+        ],
+        "page_size": "A4",
+        "orientation": "portrait",
+        "font_family": "Inter",
+        "primary_color": "#dc2626",
+        "is_active": True,
+        "is_default": True,
+        "version": 1,
+        "created_by": None,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    },
+    {
+        "id": "srt-inspection",
+        "name": "General Survey Inspection",
+        "slug": "general-survey-inspection",
+        "description": "Quick inspection report template for site visits, property assessments, and general survey observations.",
+        "report_type": "general",
+        "category": "inspection",
+        "sections": [
+            {"id": "s1", "title": "Cover Page", "type": "cover", "content": "Survey Inspection Report\n{{project_title}}\n{{district}}, Uganda", "fields": [], "required": True},
+            {"id": "s2", "title": "Inspection Details", "type": "text", "content": "Date: {{survey_date}}\nInspector: {{surveyor_name}}\nLicense No: {{surveyor_license}}\nClient: {{client_name}} (Ref: {{client_ref}})\nProject Ref: {{project_ref}}", "fields": [], "required": True},
+            {"id": "s3", "title": "Property Details", "type": "text", "content": "Location: {{village}}, {{parish}}, {{sub_county}}, {{district}}\nArea: {{area_hectares}} Hectares", "fields": [], "required": True},
+            {"id": "s4", "title": "Observations", "type": "text", "content": "Boundary Status: [Intact/Disputed/Unknown]\nBeacon Condition: [Good/Fair/Poor/Missing]\nEncroachments: [None/Details]", "fields": [], "required": True},
+            {"id": "s5", "title": "Findings", "type": "text", "content": "Key findings from the inspection.", "fields": [], "required": True},
+            {"id": "s6", "title": "Photographs", "type": "image", "content": "[Site photographs to be attached]", "fields": [], "required": False},
+            {"id": "s7", "title": "Conclusion", "type": "text", "content": "Based on the inspection on {{survey_date}}.", "fields": [], "required": True},
+            {"id": "s8", "title": "Sign-off", "type": "certification", "content": "I confirm that the inspection was carried out as described.\n\nInspector: ________________________\nName: {{surveyor_name}}\nLicense No: {{surveyor_license}}\nDate: {{preparation_date}}\n\n{{organization_name}}", "fields": [], "required": True},
+        ],
+        "header_text": "SURVEY INSPECTION REPORT — {{project_ref}}",
+        "footer_text": "Prepared by {{organization_name}} — {{preparation_date}}",
+        "logo_position": "left",
+        "variables": [
+            {"key": "client_name", "label": "Client Name", "type": "text", "source": "client", "default": ""},
+            {"key": "client_ref", "label": "Client Reference", "type": "text", "source": "client", "default": ""},
+            {"key": "project_ref", "label": "Project Reference", "type": "text", "source": "project", "default": ""},
+            {"key": "project_title", "label": "Project Title", "type": "text", "source": "project", "default": ""},
+            {"key": "district", "label": "District", "type": "text", "source": "project", "default": ""},
+            {"key": "sub_county", "label": "Sub-County", "type": "text", "source": "project", "default": ""},
+            {"key": "parish", "label": "Parish", "type": "text", "source": "project", "default": ""},
+            {"key": "village", "label": "Village", "type": "text", "source": "project", "default": ""},
+            {"key": "area_hectares", "label": "Area (Hectares)", "type": "number", "source": "project", "default": ""},
+            {"key": "survey_date", "label": "Survey Date", "type": "date", "source": "manual", "default": ""},
+            {"key": "surveyor_name", "label": "Surveyor Name", "type": "text", "source": "manual", "default": ""},
+            {"key": "surveyor_license", "label": "Surveyor License No.", "type": "text", "source": "manual", "default": ""},
+            {"key": "organization_name", "label": "Organization Name", "type": "text", "source": "manual", "default": "GWS Surveyors Ltd"},
+            {"key": "preparation_date", "label": "Preparation Date", "type": "date", "source": "manual", "default": ""},
+        ],
+        "page_size": "A4",
+        "orientation": "portrait",
+        "font_family": "Inter",
+        "primary_color": "#d97706",
+        "is_active": True,
+        "is_default": True,
+        "version": 1,
+        "created_by": None,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    },
+]
+
+def _generate_report_html(template, report_data):
+    """Generate HTML content from template and data"""
+    import re
+    primary_color = template.get("primary_color", "#059669")
+    sections = template.get("sections", [])
+    
+    html_sections = []
+    for index, section in enumerate(sections):
+        content = section.get("content", "")
+        # Replace variables
+        if report_data:
+            for key, value in report_data.items():
+                content = content.replace("{{" + key + "}}", str(value) if value else "")
+        
+        section_type = section.get("type", "text")
+        title = section.get("title", "")
+        
+        if section_type == "cover":
+            html_sections.append(f'''
+            <div style="page-break-after: always; text-align: center; padding-top: 120px;">
+              <div style="margin-bottom: 40px;">
+                <div style="width: 80px; height: 80px; margin: 0 auto 20px; background: {primary_color}; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                  <span style="color: white; font-size: 32px; font-weight: bold;">GWS</span>
+                </div>
+              </div>
+              <h1 style="font-size: 28px; color: {primary_color}; margin-bottom: 12px; font-weight: 700;">{template.get("name", "Survey Report")}</h1>
+              <div style="width: 60px; height: 3px; background: {primary_color}; margin: 20px auto;"></div>
+              <p style="font-size: 16px; color: #374151; white-space: pre-line; margin-top: 24px;">{content}</p>
+              <div style="margin-top: 60px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                <p style="font-size: 14px; color: #6b7280;">Prepared by: {report_data.get("organization_name", "GWS Surveyors Ltd")}</p>
+                <p style="font-size: 14px; color: #6b7280;">Date: {report_data.get("preparation_date", "")}</p>
+              </div>
+            </div>''')
+        elif section_type == "certification":
+            html_sections.append(f'''
+            <div style="margin-top: 40px; padding: 24px; border: 2px solid {primary_color}; border-radius: 8px;">
+              <h2 style="font-size: 18px; color: {primary_color}; margin-bottom: 16px; text-transform: uppercase;">{title}</h2>
+              <div style="font-size: 14px; line-height: 1.8; white-space: pre-line;">{content}</div>
+            </div>''')
+        elif section_type == "coordinates":
+            coords = report_data.get("coordinates_list", "[Coordinate data to be entered]")
+            html_sections.append(f'''
+            <div style="margin-bottom: 24px;">
+              <h2 style="font-size: 18px; color: {primary_color}; border-bottom: 2px solid {primary_color}; padding-bottom: 8px; margin-bottom: 16px;">{index + 1}. {title}</h2>
+              <p style="font-size: 14px; color: #374151; margin-bottom: 16px;">{content}</p>
+              <div style="font-size: 13px; white-space: pre-line; font-family: monospace; background: #f9fafb; padding: 16px; border-radius: 6px; border: 1px solid #e5e7eb;">{coords}</div>
+            </div>''')
+        elif section_type == "image":
+            html_sections.append(f'''
+            <div style="margin-bottom: 24px;">
+              <h2 style="font-size: 18px; color: {primary_color}; border-bottom: 2px solid {primary_color}; padding-bottom: 8px; margin-bottom: 16px;">{index + 1}. {title}</h2>
+              <div style="background: #f9fafb; border: 2px dashed #d1d5db; border-radius: 8px; padding: 40px; text-align: center; color: #9ca3af; font-size: 14px;">{content}</div>
+            </div>''')
+        else:
+            html_sections.append(f'''
+            <div style="margin-bottom: 24px;">
+              <h2 style="font-size: 18px; color: {primary_color}; border-bottom: 2px solid {primary_color}; padding-bottom: 8px; margin-bottom: 16px;">{index + 1}. {title}</h2>
+              <div style="font-size: 14px; line-height: 1.8; white-space: pre-line;">{content}</div>
+            </div>''')
+    
+    header_text = template.get("header_text", "")
+    footer_text = template.get("footer_text", "")
+    if report_data:
+        for key, value in report_data.items():
+            header_text = header_text.replace("{{" + key + "}}", str(value) if value else "")
+            footer_text = footer_text.replace("{{" + key + "}}", str(value) if value else "")
+    
+    return f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{template.get("name", "Survey Report")}</title>
+  <style>
+    @page {{ size: {template.get("page_size", "A4")} {template.get("orientation", "portrait")}; margin: 2cm; }}
+    body {{ font-family: '{template.get("font_family", "Inter")}', -apple-system, BlinkMacSystemFont, sans-serif; color: #1f2937; line-height: 1.6; max-width: 210mm; margin: 0 auto; padding: 20px; }}
+    @media print {{ body {{ padding: 0; }} }}
+  </style>
+</head>
+<body>
+  {f'<div style="text-align: center; padding: 12px; border-bottom: 2px solid {primary_color}; margin-bottom: 20px; font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 1px;">{header_text}</div>' if header_text else ''}
+  {"".join(html_sections)}
+  {f'<div style="text-align: center; padding: 12px; border-top: 1px solid #e5e7eb; margin-top: 40px; font-size: 11px; color: #9ca3af;">{footer_text}</div>' if footer_text else ''}
+</body>
+</html>'''
 
 def init_dynamic_data():
     """Initialize users, roles, permissions from cached API data or defaults"""
@@ -559,6 +848,171 @@ class GWSHandler(BaseHTTPRequestHandler):
                     self.send_json(result, 201)
                 return
         
+        # ── Survey Report Templates POST ──
+        if path == "/api/survey-report-templates":
+            global dynamic_survey_templates
+            if not dynamic_survey_templates:
+                dynamic_survey_templates = copy.deepcopy(DEFAULT_SURVEY_TEMPLATES)
+            name = body_json.get("name", "")
+            slug = body_json.get("slug", "")
+            if not name or not slug:
+                self.send_json({"error": "Name and slug are required"}, 400)
+                return
+            if any(t.get("slug") == slug for t in dynamic_survey_templates):
+                self.send_json({"error": "Template with this slug already exists"}, 409)
+                return
+            now = datetime.now(timezone.utc).isoformat()
+            tpl = {
+                "id": f"srt-{slug[:20]}-{str(uuid.uuid4())[:8]}",
+                "organization_id": body_json.get("organization_id"),
+                "name": name,
+                "slug": slug,
+                "description": body_json.get("description"),
+                "report_type": body_json.get("report_type", "general"),
+                "category": body_json.get("category", "survey"),
+                "sections": body_json.get("sections", []),
+                "header_text": body_json.get("header_text"),
+                "footer_text": body_json.get("footer_text"),
+                "logo_position": body_json.get("logo_position", "left"),
+                "variables": body_json.get("variables"),
+                "page_size": body_json.get("page_size", "A4"),
+                "orientation": body_json.get("orientation", "portrait"),
+                "font_family": body_json.get("font_family", "Inter"),
+                "primary_color": body_json.get("primary_color", "#059669"),
+                "is_active": body_json.get("is_active", True),
+                "is_default": body_json.get("is_default", False),
+                "version": 1,
+                "created_by": None,
+                "created_at": now,
+                "updated_at": now,
+            }
+            dynamic_survey_templates.append(tpl)
+            self.send_json(tpl, 201)
+            return
+        
+        # ── Survey Reports POST ──
+        if path == "/api/survey-reports":
+            global dynamic_survey_reports
+            template_id = body_json.get("template_id", "")
+            if not template_id:
+                self.send_json({"error": "template_id is required"}, 400)
+                return
+            tpl = next((t for t in dynamic_survey_templates if t["id"] == template_id), None)
+            if not tpl:
+                self.send_json({"error": "Template not found"}, 404)
+                return
+            now = datetime.now(timezone.utc).isoformat()
+            count = len(dynamic_survey_reports) + 1
+            report_number = f"SR-{str(count).zfill(6)}-{datetime.now().year}"
+            rpt = {
+                "id": f"sr-{str(uuid.uuid4())[:12]}",
+                "organization_id": body_json.get("organization_id"),
+                "template_id": template_id,
+                "project_id": body_json.get("project_id"),
+                "client_id": body_json.get("client_id"),
+                "title": body_json.get("title", f"{tpl['name']} - {report_number}"),
+                "report_number": report_number,
+                "status": "draft",
+                "data": body_json.get("data", {}),
+                "generated_content": None,
+                "pdf_path": None,
+                "prepared_by": body_json.get("prepared_by"),
+                "reviewed_by": None,
+                "approved_by": None,
+                "reviewed_at": None,
+                "approved_at": None,
+                "delivered_at": None,
+                "notes": body_json.get("notes"),
+                "template": {"name": tpl["name"], "report_type": tpl["report_type"], "primary_color": tpl["primary_color"]},
+                "created_at": now,
+                "updated_at": now,
+            }
+            dynamic_survey_reports.append(rpt)
+            self.send_json(rpt, 201)
+            return
+        
+        # ── Survey Reports Generate POST ──
+        if path == "/api/survey-reports/generate":
+            template_id = body_json.get("template_id", "")
+            if not template_id:
+                self.send_json({"error": "template_id is required"}, 400)
+                return
+            tpl = next((t for t in dynamic_survey_templates if t["id"] == template_id), None)
+            if not tpl:
+                self.send_json({"error": "Template not found"}, 404)
+                return
+            
+            # Build merged data
+            merged_data = {}
+            variables = tpl.get("variables", []) or []
+            for v in variables:
+                merged_data[v["key"]] = v.get("default", "")
+            
+            # Merge project data
+            project_id = body_json.get("project_id")
+            if project_id:
+                projects = api_cache.get("projects", [])
+                try:
+                    pid = int(project_id)
+                    project = next((p for p in projects if p.get("id") == pid), None)
+                except:
+                    project = None
+                if project:
+                    merged_data["project_ref"] = project.get("project_ref", merged_data.get("project_ref", ""))
+                    merged_data["project_title"] = project.get("title", merged_data.get("project_title", ""))
+                    merged_data["district"] = project.get("district", merged_data.get("district", ""))
+                    merged_data["sub_county"] = project.get("sub_county", merged_data.get("sub_county", ""))
+                    merged_data["parish"] = project.get("parish", merged_data.get("parish", ""))
+                    merged_data["village"] = project.get("village", merged_data.get("village", ""))
+                    merged_data["area_hectares"] = str(project.get("area_hectares", "")) if project.get("area_hectares") else merged_data.get("area_hectares", "")
+                    # Merge client data from project
+                    client = project.get("client", {})
+                    if client:
+                        client_name = client.get("company_name") if client.get("client_type") == "company" else " ".join(filter(None, [client.get("first_name"), client.get("last_name")]))
+                        merged_data["client_name"] = client_name or merged_data.get("client_name", "")
+                        merged_data["client_ref"] = client.get("client_ref", merged_data.get("client_ref", ""))
+            
+            # Override with custom data
+            custom_data = body_json.get("custom_data", {})
+            if custom_data:
+                merged_data.update(custom_data)
+            
+            # Set defaults
+            if not merged_data.get("preparation_date"):
+                merged_data["preparation_date"] = datetime.now().strftime("%d %B %Y")
+            if not merged_data.get("survey_date"):
+                merged_data["survey_date"] = datetime.now().strftime("%d %B %Y")
+            
+            # Generate HTML
+            html = _generate_report_html(tpl, merged_data)
+            
+            self.send_json({
+                "template_id": template_id,
+                "data": merged_data,
+                "generated_content": html,
+                "variables": tpl.get("variables"),
+                "sections": tpl.get("sections"),
+            })
+            return
+        
+        # ── Survey Reports PDF POST ──
+        if path.startswith("/api/survey-reports/") and path.endswith("/pdf"):
+            parts_path = path.strip("/").split("/")
+            if len(parts_path) >= 4:
+                rpt_id = parts_path[2]
+                rpt = next((r for r in dynamic_survey_reports if r["id"] == rpt_id), None)
+                if not rpt:
+                    self.send_json({"error": "Report not found"}, 404)
+                    return
+                # Generate HTML if not already present
+                if not rpt.get("generated_content"):
+                    tpl = next((t for t in dynamic_survey_templates if t["id"] == rpt.get("template_id")), None)
+                    if tpl:
+                        html = _generate_report_html(tpl, rpt.get("data", {}))
+                        rpt["generated_content"] = html
+                self.send_json({"html": rpt.get("generated_content", ""), "report_number": rpt.get("report_number", "")})
+                return
+        
         # ── Existing POST endpoints ──
         if path == "/api/clients":
             self.send_json({"message": "Client created", "data": body_json}, 201)
@@ -643,6 +1097,46 @@ class GWSHandler(BaseHTTPRequestHandler):
                     self.send_json(result)
                 return
             
+            # ── Survey Report Templates PATCH ──
+            if endpoint == "survey-report-templates":
+                tpl = next((t for t in dynamic_survey_templates if t["id"] == item_id), None)
+                if not tpl:
+                    self.send_json({"error": "Template not found"}, 404)
+                    return
+                now = datetime.now(timezone.utc).isoformat()
+                allowed = ["name", "slug", "description", "report_type", "category", "sections", "variables",
+                          "header_text", "footer_text", "logo_position", "page_size", "orientation",
+                          "font_family", "primary_color", "is_active", "is_default", "version"]
+                for key in allowed:
+                    if key in body_json:
+                        tpl[key] = body_json[key]
+                tpl["updated_at"] = now
+                self.send_json(tpl)
+                return
+            
+            # ── Survey Reports PATCH ──
+            if endpoint == "survey-reports":
+                rpt = next((r for r in dynamic_survey_reports if r["id"] == item_id), None)
+                if not rpt:
+                    self.send_json({"error": "Report not found"}, 404)
+                    return
+                now = datetime.now(timezone.utc).isoformat()
+                allowed = ["title", "data", "generated_content", "status", "notes",
+                          "prepared_by", "reviewed_by", "approved_by"]
+                for key in allowed:
+                    if key in body_json:
+                        rpt[key] = body_json[key]
+                # Handle status transitions
+                if body_json.get("status") == "review":
+                    rpt["reviewed_at"] = now
+                elif body_json.get("status") == "approved":
+                    rpt["approved_at"] = now
+                elif body_json.get("status") == "delivered":
+                    rpt["delivered_at"] = now
+                rpt["updated_at"] = now
+                self.send_json(rpt)
+                return
+            
             # ── Existing PATCH endpoints ──
             try:
                 numeric_id = int(item_id)
@@ -709,6 +1203,26 @@ class GWSHandler(BaseHTTPRequestHandler):
                     self.send_json(result, 409)
                 else:
                     self.send_json({"success": True})
+                return
+            
+            # ── Survey Report Templates DELETE ──
+            if endpoint == "survey-report-templates":
+                tpl = next((t for t in dynamic_survey_templates if t["id"] == item_id), None)
+                if not tpl:
+                    self.send_json({"error": "Template not found"}, 404)
+                    return
+                dynamic_survey_templates[:] = [t for t in dynamic_survey_templates if t["id"] != item_id]
+                self.send_json({"success": True, "id": item_id})
+                return
+            
+            # ── Survey Reports DELETE ──
+            if endpoint == "survey-reports":
+                rpt = next((r for r in dynamic_survey_reports if r["id"] == item_id), None)
+                if not rpt:
+                    self.send_json({"error": "Report not found"}, 404)
+                    return
+                dynamic_survey_reports[:] = [r for r in dynamic_survey_reports if r["id"] != item_id]
+                self.send_json({"success": True, "id": item_id})
                 return
         
         self.send_json({"message": "Deleted (mock)"})
@@ -1215,6 +1729,48 @@ class GWSHandler(BaseHTTPRequestHandler):
                         self.send_json({"error": "Instance not found"}, 404)
                 else:
                     self.send_json(dynamic_workflow_instances)
+                return
+            
+            # ── Survey Report Templates ──
+            if endpoint == "survey-report-templates":
+                global dynamic_survey_templates
+                # Seed defaults if empty
+                if not dynamic_survey_templates:
+                    dynamic_survey_templates = copy.deepcopy(DEFAULT_SURVEY_TEMPLATES)
+                
+                if len(parts) >= 3:
+                    tpl_id = parts[2]
+                    tpl = next((t for t in dynamic_survey_templates if t["id"] == tpl_id), None)
+                    if tpl:
+                        tpl_copy = copy.deepcopy(tpl)
+                        tpl_copy["_count"] = {"reports": sum(1 for r in dynamic_survey_reports if r.get("template_id") == tpl_id)}
+                        self.send_json(tpl_copy)
+                    else:
+                        self.send_json({"error": "Template not found"}, 404)
+                else:
+                    result = []
+                    for t in dynamic_survey_templates:
+                        t_copy = copy.deepcopy(t)
+                        t_copy["_count"] = {"reports": sum(1 for r in dynamic_survey_reports if r.get("template_id") == t["id"])}
+                        result.append(t_copy)
+                    self.send_json(result)
+                return
+            
+            # ── Survey Reports ──
+            if endpoint == "survey-reports":
+                if len(parts) >= 4 and parts[3] == "pdf":
+                    # /api/survey-reports/[id]/pdf - handled in POST
+                    self.send_json({"error": "Use POST to generate PDF"}, 405)
+                    return
+                if len(parts) >= 3:
+                    rpt_id = parts[2]
+                    rpt = next((r for r in dynamic_survey_reports if r["id"] == rpt_id), None)
+                    if rpt:
+                        self.send_json(rpt)
+                    else:
+                        self.send_json({"error": "Report not found"}, 404)
+                else:
+                    self.send_json(dynamic_survey_reports)
                 return
         
         # ── Existing endpoints with numeric IDs ──
