@@ -49,9 +49,49 @@ server.log
 # Skills directory
 /skills/
 
-# Python runtime artifacts (keep source)
+# Python runtime artifacts
 micro-server.log
-server.pid
 
-# Laravel sub-project
-gws-platform/
+# Python cache
+__pycache__/
+*.pyc
+
+# Agent context
+/agent-ctx/
+
+# Upload directory (user-generated files)
+/upload/
+
+# Server scripts (not part of the app)
+micro-server.py
+lightweight-server.py
+server-robust.py
+node-server.js
+node-server-backup.js
+gws-server.js
+custom-server.js
+serve.js
+mini-services/
+watchdog-server.sh
+start-gws-server.sh
+start-gws.sh
+start-server.sh
+start.sh
+run-server.sh
+launch-server.sh
+Caddyfile
+server.pid
+server-shell.pid
+
+# Laravel (separate project)
+/gws-platform/
+
+# DB
+/db/
+
+# API data dumps
+/api-data/
+bun.lock
+
+# Env files
+.env*
